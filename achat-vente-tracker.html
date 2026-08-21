@@ -269,9 +269,12 @@
       <select id="event-filter-vendeur"><option value="">Tous les vendeurs</option></select>
       <div class="toolbar-spacer"></div>
       <div class="toolbar-actions">
+        <button class="secondary import-btn" id="event-import-btn">Importer un CSV</button>
+        <input type="file" id="event-import-file" accept=".csv" style="display:none;">
         <button class="secondary import-btn" id="event-add-group">+ Nouvel event</button>
       </div>
     </div>
+    <div id="event-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;"></div>
     <div id="event-groups"></div>
   </div>
 
@@ -292,9 +295,12 @@
       <select id="cb-filter-vendeur"><option value="">Tous les vendeurs</option></select>
       <div class="toolbar-spacer"></div>
       <div class="toolbar-actions">
+        <button class="secondary import-btn" id="cb-import-btn">Importer un CSV</button>
+        <input type="file" id="cb-import-file" accept=".csv" style="display:none;">
         <button class="secondary import-btn" id="cb-add-group">+ Nouveau CB</button>
       </div>
     </div>
+    <div id="cb-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;"></div>
     <div id="cb-groups"></div>
   </div>
 
@@ -309,9 +315,12 @@
       </div>
       <div class="toolbar-spacer"></div>
       <div class="toolbar-actions">
+        <button class="secondary import-btn" id="ventes-import-btn">Importer un CSV</button>
+        <input type="file" id="ventes-import-file" accept=".csv" style="display:none;">
         <button class="icon-btn primary" id="ventes-add" title="Ajouter une vente">+</button>
       </div>
     </div>
+    <div id="ventes-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;"></div>
     <div class="table-scroll ref-table"><table>
       <thead><tr>
         <th>Event ou CB</th><th>Item</th><th>Acheteur</th><th>Prix vente</th><th>Prix achat</th><th>Bénéfices</th><th>Nb PC vendus</th><th>État</th><th>Commentaire</th><th></th>
@@ -323,6 +332,17 @@
 
   <!-- ===================== REFERENTIELS ===================== -->
   <div class="page" id="page-referentiels">
+    <div class="toolbar" style="padding-top:0;">
+      <div class="toolbar-spacer"></div>
+      <div class="toolbar-actions">
+        <button class="secondary import-btn" id="gom-import-btn">Importer un CSV (GOM)</button>
+        <input type="file" id="gom-import-file" accept=".csv" style="display:none;">
+        <button class="secondary import-btn" id="evcb-import-btn">Importer un CSV (Events/CB)</button>
+        <input type="file" id="evcb-import-file" accept=".csv" style="display:none;">
+      </div>
+    </div>
+    <div id="ref-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;text-align:right;"></div>
+
     <div class="ref-block">
       <div class="ref-block-head">
         <h2>GOM</h2>
@@ -1068,6 +1088,201 @@ document.getElementById('ventes-add').addEventListener('click', async () => {
   await appendRow('ventes', row);
   await loadAll();
 });
+
+/* ===================== IMPORT CSV (reprise historique) ===================== */
+
+function parseCSV(text){
+  // RFC4180-ish parser, gère les champs quotés avec virgules/retours à la ligne/guillemets échappés
+  const rows = [];
+  let row = [], field = "", inQuotes = false, i = 0;
+  const len = text.length;
+  while(i < len){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    } else {
+      if(c === '"'){ inQuotes = true; i++; continue; }
+      if(c === ','){ row.push(field); field = ""; i++; continue; }
+      if(c === '\r'){ i++; continue; }
+      if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
+      field += c; i++; continue;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  if(!rows.length) return [];
+  const headers = rows[0].map(h => h.trim());
+  return rows.slice(1).filter(r => r.length > 1 || r[0]).map(r => {
+    const obj = {};
+    headers.forEach((h, idx) => obj[h] = (r[idx]||"").trim());
+    return obj;
+  });
+}
+
+function pick(csvRow, ...names){
+  for(const n of names){ if(csvRow[n] !== undefined && csvRow[n] !== "") return csvRow[n]; }
+  return "";
+}
+
+async function ensureReferentiel(sheetKey, nom, extra){
+  if(!nom) return;
+  const known = DATA[sheetKey].some(r => cell(r,0).toLowerCase() === nom.toLowerCase());
+  if(known) return;
+  const row = sheetKey === 'gom' ? [nom, "", "", "(créé par import CSV — à qualifier)"] : [nom, extra || "Event", ""];
+  await appendRow(sheetKey, row);
+  DATA[sheetKey].push({ rowIndex: -1, cells: row }); // évite les doublons de qualification dans le même import
+}
+
+// BUY (Excel) -> ACHAT_EVENT
+async function importEventCSV(csvRows, resultEl){
+  resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
+  let added = 0;
+  for(const c of csvRows){
+    const eventNom = pick(c, "Event / Nom ...", "Event", "event");
+    if(!eventNom) continue;
+    await ensureReferentiel('evcb', eventNom, 'Event');
+    const vendeur = pick(c, "Nom GOM/Seller", "Vendeur", "vendeur");
+    await ensureReferentiel('gom', vendeur);
+    const row = [
+      eventNom,
+      pick(c, "Claim", "claim"),
+      vendeur,
+      pick(c, "Statut", "statut") || "Terminé",
+      pick(c, "Coût initial", "Init", "init"),
+      "Oui",
+      pick(c, "EMS", "ems"),
+      pick(c, "Custom", "custom"),
+      pick(c, "Dom", "dom"),
+      "", // Coût total (calc)
+      pick(c, "Nb de PC", "Nb PC", "nb_pc"),
+      "", // Coût/PC (calc)
+      pick(c, "Commentaire", "commentaire"),
+      new Date().toISOString().slice(0,10),
+      new Date().toISOString().slice(0,10),
+    ];
+    await appendRow('event', row);
+    added++;
+  }
+  resultEl.textContent = `${added} claim(s) importé(s) dans Achat Event.`;
+  await loadAll();
+}
+
+// GH PT4/PT5 (Excel) -> ACHAT_CB
+async function importCbCSV(csvRows, resultEl, cbNomDefault){
+  resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
+  let added = 0;
+  for(const c of csvRows){
+    const cbNom = pick(c, "CB", "cb") || cbNomDefault;
+    if(!cbNom) continue;
+    await ensureReferentiel('evcb', cbNom, 'CB');
+    const vendeur = pick(c, "GOM", "Vendeur", "vendeur");
+    await ensureReferentiel('gom', vendeur);
+    const row = [
+      cbNom, vendeur,
+      pick(c, "Store", "store"),
+      pick(c, "Album", "album"),
+      pick(c, "Nb albums", "nb_albums"),
+      pick(c, "Full", "full"),
+      pick(c, "inclusion", "Inclusion"),
+      (pick(c, "POB", "pob") + (pick(c,"Member","member") ? " — " + pick(c,"Member","member") : "")).trim(),
+      pick(c, "Nb pob", "Nb POB", "nb_pob"),
+      pick(c, "Init", "init"),
+      pick(c, "Init payé ?", "init_paye") || "Oui",
+      pick(c, "EMS", "ems"),
+      pick(c, "Custom", "custom"),
+      pick(c, "Doms", "Dom", "dom"),
+      "", // Total (calc)
+      "", // Coût/album (calc)
+      "Terminé",
+      "",
+      new Date().toISOString().slice(0,10),
+      new Date().toISOString().slice(0,10),
+    ];
+    await appendRow('cb', row);
+    added++;
+  }
+  resultEl.textContent = `${added} claim(s) importé(s) dans Achat CB.`;
+  await loadAll();
+}
+
+// SELL (Excel) -> VENTES
+async function importVentesCSV(csvRows, resultEl){
+  resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
+  let added = 0;
+  for(const c of csvRows){
+    const eventOuCb = pick(c, "Event / Nom ...", "Event ou CB", "event");
+    const row = [
+      eventOuCb,
+      pick(c, "Item", "item"),
+      pick(c, "Nom acheteur", "Acheteur", "acheteur"),
+      pick(c, "Prix vente", "prix_vente"),
+      pick(c, "Prix achat", "prix_achat"),
+      "", // Bénéfices (calc)
+      pick(c, "Nb PC vendue", "Nb PC vendus", "nb_pc"),
+      pick(c, "État", "etat") || "Terminé",
+      pick(c, "Commentaire", "commentaire"),
+      new Date().toISOString().slice(0,10),
+    ];
+    await appendRow('ventes', row);
+    added++;
+  }
+  resultEl.textContent = `${added} vente(s) importée(s).`;
+  await loadAll();
+}
+
+// Import référentiel direct (GOM ou Events_CB)
+async function importRefCSV(sheetKey, csvRows, resultEl){
+  resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
+  const existing = new Set(DATA[sheetKey].map(r => cell(r,0).toLowerCase()));
+  let added = 0, skipped = 0;
+  for(const c of csvRows){
+    let row;
+    if(sheetKey === 'gom'){
+      const nom = pick(c, "Nom GOM/Seller", "Nom GOM / Seller", "Nom", "nom");
+      if(!nom || existing.has(nom.toLowerCase())){ skipped++; continue; }
+      row = [nom, pick(c,"Lieu","lieu"), pick(c,"Canal","canal"), pick(c,"Commentaire","commentaire")];
+      existing.add(nom.toLowerCase());
+    } else {
+      const nom = pick(c, "Nom", "nom");
+      if(!nom || existing.has(nom.toLowerCase())){ skipped++; continue; }
+      row = [nom, pick(c,"Type","type") || "Event", pick(c,"Commentaire","commentaire")];
+      existing.add(nom.toLowerCase());
+    }
+    await appendRow(sheetKey, row);
+    added++;
+  }
+  resultEl.textContent = `${added} ajouté(s), ${skipped} déjà présent(s) (ignoré(s)).`;
+  await loadAll();
+}
+
+function wireImport(btnId, fileId, handler){
+  const btn = document.getElementById(btnId);
+  const file = document.getElementById(fileId);
+  btn.addEventListener('click', () => file.click());
+  file.addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if(!f) return;
+    const resultEl = document.getElementById(btnId.replace('-btn','-result')) || document.getElementById('ref-import-result');
+    resultEl.textContent = "Lecture du fichier...";
+    try{
+      const text = await f.text();
+      const rows = parseCSV(text);
+      await handler(rows, resultEl);
+    }catch(err){
+      resultEl.textContent = "Erreur : " + err.message;
+    }
+    file.value = "";
+  });
+}
+
+wireImport('event-import-btn', 'event-import-file', importEventCSV);
+wireImport('cb-import-btn', 'cb-import-file', (rows, el) => importCbCSV(rows, el, null));
+wireImport('ventes-import-btn', 'ventes-import-file', importVentesCSV);
+wireImport('gom-import-btn', 'gom-import-file', (rows, el) => importRefCSV('gom', rows, el));
+wireImport('evcb-import-btn', 'evcb-import-file', (rows, el) => importRefCSV('evcb', rows, el));
 
 /* ===================== FILTRES / NAV ===================== */
 ['event-search','event-filter-statut','event-filter-vendeur'].forEach(id => {
