@@ -143,10 +143,10 @@
   .table-scroll{ overflow-x:auto; background: var(--surface); }
   table{ width:100%; border-collapse:collapse; }
   thead th{
-    text-align:left; font-size:0.62rem; text-transform:uppercase; letter-spacing:0.03em; color: var(--ink-faint);
-    font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap;
+    text-align:left; font-size:0.6rem; text-transform:uppercase; letter-spacing:0.03em; color: var(--ink-faint);
+    font-weight:600; padding:7px 6px; border-bottom:1px solid var(--line); white-space:nowrap;
   }
-  td{ padding:7px 8px; font-size:0.78rem; border-bottom:1px solid var(--line-soft); vertical-align:middle; white-space:nowrap; }
+  td{ padding:5px 5px; font-size:0.76rem; border-bottom:1px solid var(--line-soft); vertical-align:middle; white-space:nowrap; }
   tbody tr:last-child td{ border-bottom:none; }
   td.claim-icon{ width:1%; padding-right:2px; }
   .pencil{
@@ -156,6 +156,22 @@
   .pencil:hover{ background: var(--line-soft); }
   .pencil.has-comment{ color: var(--amber); }
   .vendeur-pill{ background: var(--accent-soft); color: var(--accent); font-size:0.68rem; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+  select.vendeur-select{
+    background: var(--accent-soft); color: var(--accent); border:none; font-size:0.7rem; font-weight:500;
+    padding:4px 20px 4px 9px; border-radius:20px; font-family:'Inter',sans-serif; cursor:pointer;
+    width:auto; max-width:120px; appearance:none; -webkit-appearance:none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%232f5d54'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position: right 8px center;
+  }
+  select.vendeur-select.empty{ background-color: var(--line-soft); color: var(--ink-faint); }
+  .row-actions{ display:flex; gap:2px; }
+  .row-actions button{
+    background:none; border:none; color: var(--ink-faint); cursor:pointer; font-size:0.9rem;
+    width:22px; height:22px; padding:0; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .row-actions button:hover{ background: var(--line-soft); color: var(--ink); }
+  .row-actions button.del:hover{ color: var(--danger); }
+  .cell-input.date-input{ width:98px; }
   .statut-pill{ font-size:0.68rem; padding:2px 8px; border-radius:20px; font-weight:500; white-space:nowrap; border:none; cursor:pointer; font-family:'Inter',sans-serif; }
   .statut-termine{ background: var(--accent-soft); color: var(--accent); }
   .statut-encours{ background: var(--amber-soft); color: var(--amber); }
@@ -169,13 +185,33 @@
   .price-dot.high{ background: var(--danger); }
   .add-row{ padding:10px 16px; border-top:1px solid var(--line-soft); background: var(--surface); }
   .add-row button{ font-size:0.76rem; padding:6px 12px; }
-  .cell-input{ width:72px; }
+  .cell-input{ width:62px; padding:6px 8px; }
   .cell-input.wide{ width:150px; }
-  .cell-input.narrow{ width:48px; }
-  .claim-text-input{ width:170px; }
-  td.pob-cell input{ width:190px; white-space:normal; }
-  td.pob-cell{ white-space:normal; max-width:220px; }
+  .cell-input.narrow{ width:40px; padding:6px 4px; text-align:center; }
+  .cell-input.vwide{ width:210px; }
+  .cell-input.vwide-comment{ width:260px; }
+  .claim-text-input{ width:150px; }
+  td.pob-cell input{ width:170px; white-space:normal; }
+  td.pob-cell{ white-space:normal; max-width:200px; }
   .readonly-val{ color: var(--ink-soft); }
+
+  /* ===== Multiselect (filtre statut) ===== */
+  .multiselect{ position:relative; flex-shrink:0; }
+  .ms-toggle{
+    font-family:'Inter',sans-serif; font-size:0.82rem; padding:7px 26px 7px 10px; border:1px solid var(--line); border-radius:6px;
+    background: var(--surface); color: var(--ink); cursor:pointer; white-space:nowrap; position:relative;
+  }
+  .ms-toggle::after{ content:"▾"; position:absolute; right:10px; top:50%; transform:translateY(-50%); font-size:0.65rem; color: var(--ink-faint); }
+  .ms-toggle:hover{ border-color: var(--accent-soft); }
+  .ms-panel{
+    display:none; position:absolute; top:calc(100% + 4px); left:0; background:#fff; border:1px solid var(--line);
+    border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:6px; z-index:30; min-width:170px;
+  }
+  .ms-panel.open{ display:block; }
+  .ms-panel label{ display:flex; align-items:center; gap:8px; font-size:0.8rem; padding:6px 8px; border-radius:5px; cursor:pointer; white-space:nowrap; }
+  .ms-panel label:hover{ background: var(--line-soft); }
+  .ms-panel input[type=checkbox]{ width:auto; margin:0; }
+  .ms-panel .ms-clear{ font-size:0.72rem; color: var(--accent); cursor:pointer; padding:6px 8px 2px; }
 
   /* ===== Modals ===== */
   .modal-overlay{ display:none; position:fixed; inset:0; background:rgba(28,29,27,0.35); align-items:center; justify-content:center; z-index:50; padding:20px; }
@@ -208,17 +244,65 @@
 
   @media (max-width:720px){
     header{ padding:20px 16px 0; }
-    nav.main-nav{ padding:0 12px; justify-content:flex-start; }
+    nav.main-nav{ padding:0 12px; justify-content:center; flex-wrap:wrap; overflow-x:visible; row-gap:2px; }
+    nav.main-nav .nav-item{ padding:10px 10px; font-size:0.8rem; }
     .shell{ padding:16px 12px 40px; }
     .kpi-band{ gap:8px; }
     .kpi-card{ flex:0 0 calc(50% - 4px); min-width:0; padding:12px 14px; }
     .toolbar{ flex-direction:column; align-items:stretch; }
     .search-wrap{ width:100%; }
     .toolbar select{ width:100%; }
+    .toolbar .multiselect{ width:100%; }
+    .toolbar .ms-toggle{ width:100%; text-align:left; }
     .toolbar-spacer{ display:none; }
     .toolbar-actions{ justify-content:flex-end; }
-    .table-scroll{ overflow-x:auto; }
-    table{ min-width:900px; }
+
+    /* ===== Tables -> cartes (mockup achat-event.html validé) ===== */
+    .group{ background:transparent; border:none; border-radius:0; }
+    .group-head{ background:transparent; border:none; padding:16px 2px 8px; flex-wrap:wrap; row-gap:4px; }
+    .table-scroll{ overflow-x:visible; background:transparent; }
+    table{ display:block; width:100%; min-width:0; }
+    thead{ display:none; }
+    tbody{ display:block; }
+    tbody tr{
+      display:block; position:relative; background:var(--surface);
+      border:1px solid var(--line); border-radius:12px;
+      padding:14px 40px 6px 14px; margin:0 0 10px; box-shadow:0 1px 3px rgba(28,29,27,0.05);
+    }
+    tbody tr td{ display:block; float:none; width:100%!important; border:none; padding:0 0 10px; white-space:normal; }
+    tbody tr::after{ content:""; display:table; clear:both; }
+    .add-row{ background:transparent; border-top:none; padding:4px 2px 0; }
+
+    /* icône commentaire / actions -> coin haut droit de la carte */
+    #page-event tbody tr td.claim-icon,
+    #page-cb tbody tr td.claim-icon,
+    #page-ventes tbody tr td.row-actions{
+      position:absolute; top:12px; right:10px; width:auto!important; padding:0;
+    }
+    #page-ventes tbody tr td.row-actions{ display:flex; gap:2px; }
+
+    /* labels au-dessus de chaque champ */
+    tbody tr td[data-mlabel]::before{
+      content: attr(data-mlabel); display:block; font-size:0.62rem; text-transform:uppercase;
+      letter-spacing:0.05em; color: var(--ink-faint); margin-bottom:3px;
+    }
+    tbody tr td input, tbody tr td select, tbody tr td textarea{ width:100%!important; box-sizing:border-box; }
+
+    /* grille 2 colonnes pour les champs de saisie */
+    tbody tr td.mfield{ float:left; width:50%!important; clear:none; box-sizing:border-box; padding:0 10px 10px 0; }
+    tbody tr td.mfield-left{ clear:left; }
+    tbody tr td.mfield-full{ float:none; width:100%!important; clear:both; }
+
+    /* ligne de titre (claim) + pastilles vendeur/statut en haut de carte, hors grille */
+    #page-event tbody tr td.mtitle,
+    #page-ventes tbody tr td.mtitle{ font-size:0.95rem; padding-right:26px; }
+    #page-event tbody tr td.mpill, #page-cb tbody tr td.mpill{
+      float:left; width:auto!important; margin:0 8px 10px 0; padding:0;
+    }
+    #page-event tbody tr td.mpill select, #page-cb tbody tr td.mpill select{ width:auto!important; }
+
+    /* pastille couleur (dot) redondante avec le €/PC affiché juste au-dessus : masquée sur mobile */
+    #page-event tbody tr td.pastille-cell, #page-cb tbody tr td.pastille-cell{ display:none; }
   }
 </style>
 </head>
@@ -262,10 +346,8 @@
         <input type="text" id="event-search" placeholder="Event, claim...">
         <span class="x" id="event-search-x">×</span>
       </div>
-      <select id="event-filter-statut">
-        <option value="">Tous les statuts</option>
-        <option>Terminé</option><option>En cours</option><option>Abandonné</option><option>Perdu</option>
-      </select>
+      <div class="multiselect" id="event-filter-statut-ms"></div>
+      <select id="event-filter-event"><option value="">Tous les events</option></select>
       <select id="event-filter-vendeur"><option value="">Tous les vendeurs</option></select>
       <div class="toolbar-spacer"></div>
       <div class="toolbar-actions">
@@ -282,16 +364,14 @@
   <div class="page" id="page-cb">
     <div class="kpi-band" id="cb-kpi"></div>
     <div class="kpi-sub" id="cb-kpi-sub"></div>
-    <div class="kpi-note">Recalculé dynamiquement selon les filtres actifs. Coût/album = Total ÷ Full (pas Nb albums).</div>
+    <div class="kpi-note">Coût/album = Total ÷ Full (pas Nb albums).</div>
     <div class="toolbar">
       <div class="search-wrap">
         <input type="text" id="cb-search" placeholder="Comeback, store...">
         <span class="x" id="cb-search-x">×</span>
       </div>
-      <select id="cb-filter-statut">
-        <option value="">Tous les statuts</option>
-        <option>Terminé</option><option>En cours</option><option>Abandonné</option><option>Perdu</option>
-      </select>
+      <div class="multiselect" id="cb-filter-statut-ms"></div>
+      <select id="cb-filter-cb"><option value="">Tous les CB</option></select>
       <select id="cb-filter-vendeur"><option value="">Tous les vendeurs</option></select>
       <div class="toolbar-spacer"></div>
       <div class="toolbar-actions">
@@ -313,6 +393,7 @@
         <input type="text" id="ventes-search" placeholder="Event, item, acheteur...">
         <span class="x" id="ventes-search-x">×</span>
       </div>
+      <select id="ventes-filter-evcb"><option value="">Tous les events / CB</option></select>
       <div class="toolbar-spacer"></div>
       <div class="toolbar-actions">
         <button class="secondary import-btn" id="ventes-import-btn">Importer un CSV</button>
@@ -323,7 +404,7 @@
     <div id="ventes-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;"></div>
     <div class="table-scroll ref-table"><table>
       <thead><tr>
-        <th>Event ou CB</th><th>Item</th><th>Acheteur</th><th>Prix vente</th><th>Prix achat</th><th>Bénéfices</th><th>Nb PC vendus</th><th>État</th><th>Commentaire</th><th></th>
+        <th>Event ou CB</th><th>Item</th><th>Acheteur</th><th>Prix vente</th><th>Prix achat</th><th>Bénéfices</th><th>Nb PC vendus</th><th>État</th><th>Commentaire</th><th>Date</th><th></th>
       </tr></thead>
       <tbody id="ventes-body"></tbody>
     </table></div>
@@ -435,6 +516,7 @@ const SHEETS = {
 };
 
 let DATA = { event: [], cb: [], ventes: [], gom: [], evcb: [] };
+let SHEET_IDS = {}; // sheetKey -> numeric sheetId (nécessaire pour supprimer une ligne)
 let openComment_ctx = null;
 
 const els = {
@@ -527,6 +609,13 @@ function colLetter(n){ // 0-based index -> A1 letter
 async function loadAll(){
   setStatus("Chargement...");
   try{
+    if(Object.keys(SHEET_IDS).length === 0){
+      const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties(sheetId,title)`;
+      const meta = await apiFetch(metaUrl);
+      const byTitle = {};
+      (meta.sheets || []).forEach(s => { byTitle[s.properties.title] = s.properties.sheetId; });
+      Object.entries(SHEETS).forEach(([k, s]) => { if(byTitle[s.name] !== undefined) SHEET_IDS[k] = byTitle[s.name]; });
+    }
     const ranges = Object.values(SHEETS).map(s => `${s.name}!A2:${colLetter(s.width-1)}`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?` +
       ranges.map(r => `ranges=${encodeURIComponent(r)}`).join('&');
@@ -608,6 +697,7 @@ function renderAll(){
   renderVentes();
   renderReferentiels();
   populateVendeurFilters();
+  populateEvcbFilters();
 }
 
 function fmtEuro(n){ return n.toLocaleString('fr-FR', {minimumFractionDigits:0, maximumFractionDigits:2}) + ' €'; }
@@ -650,14 +740,87 @@ function populateVendeurFilters(){
   });
 }
 
+// Filtres "Nom d'event / de CB" : basés sur le référentiel EVENTS_CB (par Type),
+// avec repli sur les noms distincts déjà présents dans les tables si le référentiel est incomplet.
+function populateEvcbFilters(){
+  const evcbEventNames = new Set(DATA.evcb.filter(r => cell(r,1) === 'Event').map(r => cell(r,0)).filter(Boolean));
+  DATA.event.forEach(r => { if(cell(r,0)) evcbEventNames.add(cell(r,0)); });
+  const evcbCbNames = new Set(DATA.evcb.filter(r => cell(r,1) === 'CB').map(r => cell(r,0)).filter(Boolean));
+  DATA.cb.forEach(r => { if(cell(r,0)) evcbCbNames.add(cell(r,0)); });
+
+  fillSelectPreserving('event-filter-event', 'Tous les events', Array.from(evcbEventNames).sort((a,b)=>a.localeCompare(b)));
+  fillSelectPreserving('cb-filter-cb', 'Tous les CB', Array.from(evcbCbNames).sort((a,b)=>a.localeCompare(b)));
+
+  const allNames = Array.from(new Set([...evcbEventNames, ...evcbCbNames])).sort((a,b)=>a.localeCompare(b));
+  fillSelectPreserving('ventes-filter-evcb', 'Tous les events / CB', allNames);
+}
+function fillSelectPreserving(id, placeholder, values){
+  const sel = document.getElementById(id);
+  if(!sel) return;
+  const current = sel.value;
+  sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('');
+  sel.value = current;
+}
+
+/* ---------- Filtre statut multi-select ---------- */
+let eventStatutFilter = [];
+let cbStatutFilter = [];
+const STATUT_OPTIONS = ["Terminé","En cours","Abandonné","Perdu"];
+
+function initStatutMultiselect(containerId, getSelected, setSelected, onChange){
+  const container = document.getElementById(containerId);
+  function renderToggleLabel(){
+    const sel = getSelected();
+    const toggle = container.querySelector('.ms-toggle');
+    toggle.textContent = sel.length === 0 ? 'Tous les statuts' : (sel.length === 1 ? sel[0] : `${sel.length} statuts`);
+  }
+  container.innerHTML = `
+    <button type="button" class="ms-toggle"></button>
+    <div class="ms-panel">
+      ${STATUT_OPTIONS.map(o => `<label><input type="checkbox" value="${escapeAttr(o)}"> ${escapeHtml(o)}</label>`).join('')}
+      <div class="ms-clear">Réinitialiser</div>
+    </div>`;
+  const panel = container.querySelector('.ms-panel');
+  const toggle = container.querySelector('.ms-toggle');
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.ms-panel.open').forEach(p => { if(p !== panel) p.classList.remove('open'); });
+    panel.classList.toggle('open');
+  });
+  panel.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      let sel = getSelected();
+      if(cb.checked) sel.push(cb.value); else sel = sel.filter(v => v !== cb.value);
+      setSelected(sel);
+      renderToggleLabel();
+      onChange();
+    });
+  });
+  panel.querySelector('.ms-clear').addEventListener('click', () => {
+    setSelected([]);
+    panel.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+    renderToggleLabel();
+    onChange();
+    panel.classList.remove('open');
+  });
+  renderToggleLabel();
+}
+document.addEventListener('click', (e) => {
+  if(!e.target.closest('.multiselect')) document.querySelectorAll('.ms-panel.open').forEach(p => p.classList.remove('open'));
+});
+initStatutMultiselect('event-filter-statut-ms', () => eventStatutFilter, (v) => eventStatutFilter = v, () => renderEvent());
+initStatutMultiselect('cb-filter-statut-ms', () => cbStatutFilter, (v) => cbStatutFilter = v, () => renderCB());
+
 function renderEvent(){
   const q = (document.getElementById('event-search').value || '').trim().toLowerCase();
-  const stFilter = document.getElementById('event-filter-statut').value;
+  const stFilter = eventStatutFilter; // array, [] = tous
+  const evFilter = document.getElementById('event-filter-event').value;
   const vFilter = document.getElementById('event-filter-vendeur').value;
 
   let rows = DATA.event.filter(r => {
     if(q && !(cell(r,1).toLowerCase().includes(q) || cell(r,0).toLowerCase().includes(q))) return false;
-    if(stFilter && cell(r,3) !== stFilter) return false;
+    if(stFilter.length && !stFilter.includes(cell(r,3))) return false;
+    if(evFilter && cell(r,0) !== evFilter) return false;
     if(vFilter && cell(r,2) !== vFilter) return false;
     return true;
   });
@@ -719,17 +882,17 @@ function eventRowHtml(r){
   return `
     <tr data-row="${r.rowIndex}">
       <td class="claim-icon"><button class="pencil ${comment?'has-comment':''}" title="Commentaire" onclick="openCommentModal('event', ${r.rowIndex}, ${JSON.stringify(cell(r,1)||'ce claim').replace(/"/g,'&quot;')})">✎</button></td>
-      <td><input class="cell-input claim-text-input" value="${escapeAttr(cell(r,1))}" onblur="saveCell('event', ${r.rowIndex}, 1, this.value)"></td>
-      <td>${vendeurFieldHtml('event', r.rowIndex, 2, cell(r,2))}</td>
-      <td>${statutSelectHtml('event', r.rowIndex, 3, cell(r,3))}</td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,4))}" onblur="saveCell('event', ${r.rowIndex}, 4, this.value)"></td>
-      <td>${ouiNonSelectHtml('event', r.rowIndex, 5, cell(r,5))}</td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('event', ${r.rowIndex}, 6, this.value)"></td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,7))}" onblur="saveCell('event', ${r.rowIndex}, 7, this.value)"></td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,8))}" onblur="saveCell('event', ${r.rowIndex}, 8, this.value)"></td>
-      <td class="cost-cell readonly-val">${total?fmtEuro(total):'—'}</td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,10))}" onblur="saveCell('event', ${r.rowIndex}, 10, this.value)"></td>
-      <td class="readonly-val">${cpp?cpp.toFixed(2)+' €':'—'}</td>
+      <td class="mtitle"><input class="cell-input claim-text-input" value="${escapeAttr(cell(r,1))}" onblur="saveCell('event', ${r.rowIndex}, 1, this.value)"></td>
+      <td class="mpill">${vendeurSelectHtml('event', r.rowIndex, 2, cell(r,2))}</td>
+      <td class="mpill">${statutSelectHtml('event', r.rowIndex, 3, cell(r,3))}</td>
+      <td class="mfield mfield-left" data-mlabel="Init"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,4))}" onblur="saveCell('event', ${r.rowIndex}, 4, this.value)"></td>
+      <td class="mfield" data-mlabel="Payé">${ouiNonSelectHtml('event', r.rowIndex, 5, cell(r,5))}</td>
+      <td class="mfield mfield-left" data-mlabel="EMS"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('event', ${r.rowIndex}, 6, this.value)"></td>
+      <td class="mfield" data-mlabel="Custom"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,7))}" onblur="saveCell('event', ${r.rowIndex}, 7, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Dom"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,8))}" onblur="saveCell('event', ${r.rowIndex}, 8, this.value)"></td>
+      <td class="cost-cell readonly-val mfield" data-mlabel="Total">${total?fmtEuro(total):'—'}</td>
+      <td class="mfield mfield-left" data-mlabel="Nb PC"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,10))}" onblur="saveCell('event', ${r.rowIndex}, 10, this.value)"></td>
+      <td class="readonly-val mfield" data-mlabel="€/PC">${cpp?cpp.toFixed(2)+' €':'—'}</td>
       <td class="pastille-cell"><span class="price-dot ${pastilleClass(cpp)}" title="Coût / PC"></span></td>
     </tr>`;
 }
@@ -737,12 +900,14 @@ function eventRowHtml(r){
 /* ---------- Achat CB ---------- */
 function renderCB(){
   const q = (document.getElementById('cb-search').value || '').trim().toLowerCase();
-  const stFilter = document.getElementById('cb-filter-statut').value;
+  const stFilter = cbStatutFilter; // array, [] = tous
+  const cbNameFilter = document.getElementById('cb-filter-cb').value;
   const vFilter = document.getElementById('cb-filter-vendeur').value;
 
   let rows = DATA.cb.filter(r => {
     if(q && !(cell(r,2).toLowerCase().includes(q) || cell(r,0).toLowerCase().includes(q))) return false;
-    if(stFilter && cell(r,16) !== stFilter) return false;
+    if(stFilter.length && !stFilter.includes(cell(r,16))) return false;
+    if(cbNameFilter && cell(r,0) !== cbNameFilter) return false;
     if(vFilter && cell(r,1) !== vFilter) return false;
     return true;
   });
@@ -825,21 +990,21 @@ function cbRowHtml(r){
   return `
     <tr data-row="${r.rowIndex}">
       <td class="claim-icon"><button class="pencil ${comment?'has-comment':''}" title="Commentaire" onclick="openCommentModal('cb', ${r.rowIndex}, ${JSON.stringify(cell(r,1)||'ce claim').replace(/"/g,'&quot;')})">✎</button></td>
-      <td>${vendeurFieldHtml('cb', r.rowIndex, 1, cell(r,1))}</td>
-      <td>${statutSelectHtml('cb', r.rowIndex, 16, cell(r,16))}</td>
-      <td><input type="text" class="cell-input" value="${escapeAttr(cell(r,2))}" onblur="saveCell('cb', ${r.rowIndex}, 2, this.value)"></td>
-      <td><input type="text" class="cell-input" value="${escapeAttr(cell(r,3))}" onblur="saveCell('cb', ${r.rowIndex}, 3, this.value); renderCB();"></td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,4))}" onblur="saveCell('cb', ${r.rowIndex}, 4, this.value)"></td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,5))}" onblur="saveCell('cb', ${r.rowIndex}, 5, this.value); renderCB();"></td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('cb', ${r.rowIndex}, 6, this.value)"></td>
-      <td class="pob-cell"><input type="text" value="${escapeAttr(cell(r,7))}" onblur="saveCell('cb', ${r.rowIndex}, 7, this.value)"></td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,8))}" onblur="saveCell('cb', ${r.rowIndex}, 8, this.value)"></td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,9))}" onblur="saveCell('cb', ${r.rowIndex}, 9, this.value)"></td>
-      <td>${ouiNonSelectHtml('cb', r.rowIndex, 10, cell(r,10))}</td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,11))}" onblur="saveCell('cb', ${r.rowIndex}, 11, this.value)"></td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,12))}" onblur="saveCell('cb', ${r.rowIndex}, 12, this.value)"></td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,13))}" onblur="saveCell('cb', ${r.rowIndex}, 13, this.value)"></td>
-      <td class="cost-cell readonly-val">${total?fmtEuro(total):'—'}</td>
+      <td class="mpill">${vendeurSelectHtml('cb', r.rowIndex, 1, cell(r,1))}</td>
+      <td class="mpill">${statutSelectHtml('cb', r.rowIndex, 16, cell(r,16))}</td>
+      <td class="mfield mfield-left" data-mlabel="Store"><input type="text" class="cell-input" value="${escapeAttr(cell(r,2))}" onblur="saveCell('cb', ${r.rowIndex}, 2, this.value)"></td>
+      <td class="mfield" data-mlabel="Album"><input type="text" class="cell-input" value="${escapeAttr(cell(r,3))}" onblur="saveCell('cb', ${r.rowIndex}, 3, this.value); renderCB();"></td>
+      <td class="mfield mfield-left" data-mlabel="Nb alb."><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,4))}" onblur="saveCell('cb', ${r.rowIndex}, 4, this.value)"></td>
+      <td class="mfield" data-mlabel="Full"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,5))}" onblur="saveCell('cb', ${r.rowIndex}, 5, this.value); renderCB();"></td>
+      <td class="mfield mfield-left" data-mlabel="Incl."><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('cb', ${r.rowIndex}, 6, this.value)"></td>
+      <td class="pob-cell mfield" data-mlabel="POB / membre"><input type="text" value="${escapeAttr(cell(r,7))}" onblur="saveCell('cb', ${r.rowIndex}, 7, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Nb POB"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,8))}" onblur="saveCell('cb', ${r.rowIndex}, 8, this.value)"></td>
+      <td class="mfield" data-mlabel="Init"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,9))}" onblur="saveCell('cb', ${r.rowIndex}, 9, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Payé">${ouiNonSelectHtml('cb', r.rowIndex, 10, cell(r,10))}</td>
+      <td class="mfield" data-mlabel="EMS"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,11))}" onblur="saveCell('cb', ${r.rowIndex}, 11, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Custom"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,12))}" onblur="saveCell('cb', ${r.rowIndex}, 12, this.value)"></td>
+      <td class="mfield" data-mlabel="Dom"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,13))}" onblur="saveCell('cb', ${r.rowIndex}, 13, this.value)"></td>
+      <td class="cost-cell readonly-val mfield mfield-left" data-mlabel="Total">${total?fmtEuro(total):'—'}</td>
       <td class="pastille-cell"><span class="price-dot ${pastilleClass(cpa)}" title="Coût / album"></span></td>
     </tr>`;
 }
@@ -847,7 +1012,9 @@ function cbRowHtml(r){
 /* ---------- Ventes ---------- */
 function renderVentes(){
   const q = (document.getElementById('ventes-search').value || '').trim().toLowerCase();
+  const evcbFilter = document.getElementById('ventes-filter-evcb').value;
   let rows = DATA.ventes.filter(r => {
+    if(evcbFilter && cell(r,0) !== evcbFilter) return false;
     if(!q) return true;
     return cell(r,0).toLowerCase().includes(q) || cell(r,1).toLowerCase().includes(q) || cell(r,2).toLowerCase().includes(q);
   });
@@ -869,16 +1036,20 @@ function renderVentes(){
     const benef = num(r,3) - num(r,4);
     return `
     <tr data-row="${r.rowIndex}">
-      <td>${evcbFieldHtml('ventes', r.rowIndex, 0, cell(r,0))}</td>
-      <td><input type="text" class="cell-input" value="${escapeAttr(cell(r,1))}" onblur="saveCell('ventes', ${r.rowIndex}, 1, this.value)"></td>
-      <td><input type="text" class="cell-input" value="${escapeAttr(cell(r,2))}" onblur="saveCell('ventes', ${r.rowIndex}, 2, this.value)"></td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,3))}" onblur="saveCell('ventes', ${r.rowIndex}, 3, this.value); renderVentes();"></td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,4))}" onblur="saveCell('ventes', ${r.rowIndex}, 4, this.value); renderVentes();"></td>
-      <td class="cost-cell readonly-val">${fmtEuro(benef)}</td>
-      <td><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('ventes', ${r.rowIndex}, 6, this.value)"></td>
-      <td>${statutSelectHtml('ventes', r.rowIndex, 7, cell(r,7))}</td>
-      <td><input type="text" class="cell-input" value="${escapeAttr(cell(r,8))}" onblur="saveCell('ventes', ${r.rowIndex}, 8, this.value)"></td>
-      <td></td>
+      <td class="mtitle">${evcbFieldHtml('ventes', r.rowIndex, 0, cell(r,0))}</td>
+      <td class="mfield mfield-left" data-mlabel="Item"><input type="text" class="cell-input vwide" value="${escapeAttr(cell(r,1))}" onblur="saveCell('ventes', ${r.rowIndex}, 1, this.value)"></td>
+      <td class="mfield" data-mlabel="Acheteur"><input type="text" class="cell-input vwide" value="${escapeAttr(cell(r,2))}" onblur="saveCell('ventes', ${r.rowIndex}, 2, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Prix vente"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,3))}" onblur="saveCell('ventes', ${r.rowIndex}, 3, this.value); renderVentes();"></td>
+      <td class="mfield" data-mlabel="Prix achat"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,4))}" onblur="saveCell('ventes', ${r.rowIndex}, 4, this.value); renderVentes();"></td>
+      <td class="cost-cell readonly-val mfield mfield-left" data-mlabel="Bénéfices">${fmtEuro(benef)}</td>
+      <td class="mfield" data-mlabel="Nb PC vendus"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('ventes', ${r.rowIndex}, 6, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="État">${statutSelectHtml('ventes', r.rowIndex, 7, cell(r,7))}</td>
+      <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input vwide-comment" value="${escapeAttr(cell(r,8))}" onblur="saveCell('ventes', ${r.rowIndex}, 8, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Date"><input type="text" class="cell-input date-input" placeholder="AAAA-MM-JJ" value="${escapeAttr(cell(r,9))}" onblur="saveCell('ventes', ${r.rowIndex}, 9, this.value)"></td>
+      <td class="row-actions">
+        <button type="button" title="Dupliquer (date du jour)" onclick="duplicateVenteRow(${r.rowIndex})">⧉</button>
+        <button type="button" class="del" title="Supprimer" onclick="deleteVenteRow(${r.rowIndex})">🗑</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -887,17 +1058,17 @@ function renderVentes(){
 function renderReferentiels(){
   document.getElementById('gom-body').innerHTML = DATA.gom.map(r => `
     <tr data-row="${r.rowIndex}">
-      <td><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,0))}" onblur="saveCell('gom', ${r.rowIndex}, 0, this.value)"></td>
-      <td><input type="text" class="cell-input" value="${escapeAttr(cell(r,1))}" onblur="saveCell('gom', ${r.rowIndex}, 1, this.value)"></td>
-      <td>${canalSelectHtml('gom', r.rowIndex, 2, cell(r,2))}</td>
-      <td><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,3))}" onblur="saveCell('gom', ${r.rowIndex}, 3, this.value)"></td>
+      <td class="mtitle" data-mlabel="Nom GOM / Seller"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,0))}" onblur="saveCell('gom', ${r.rowIndex}, 0, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Lieu"><input type="text" class="cell-input" value="${escapeAttr(cell(r,1))}" onblur="saveCell('gom', ${r.rowIndex}, 1, this.value)"></td>
+      <td class="mfield" data-mlabel="Canal">${canalSelectHtml('gom', r.rowIndex, 2, cell(r,2))}</td>
+      <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,3))}" onblur="saveCell('gom', ${r.rowIndex}, 3, this.value)"></td>
     </tr>`).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--ink-faint);">Aucun GOM pour l'instant.</td></tr>`;
 
   document.getElementById('evcb-body').innerHTML = DATA.evcb.map(r => `
     <tr data-row="${r.rowIndex}">
-      <td><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,0))}" onblur="saveCell('evcb', ${r.rowIndex}, 0, this.value)"></td>
-      <td>${typeSelectHtml('evcb', r.rowIndex, 1, cell(r,1))}</td>
-      <td><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,2))}" onblur="saveCell('evcb', ${r.rowIndex}, 2, this.value)"></td>
+      <td class="mtitle" data-mlabel="Nom"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,0))}" onblur="saveCell('evcb', ${r.rowIndex}, 0, this.value)"></td>
+      <td class="mfield mfield-full" data-mlabel="Type">${typeSelectHtml('evcb', r.rowIndex, 1, cell(r,1))}</td>
+      <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,2))}" onblur="saveCell('evcb', ${r.rowIndex}, 2, this.value)"></td>
     </tr>`).join('') || `<tr><td colspan="3" style="text-align:center;color:var(--ink-faint);">Aucun event/CB pour l'instant.</td></tr>`;
 }
 
@@ -926,9 +1097,32 @@ function typeSelectHtml(sheetKey, rowIndex, colIdx, current){
   </select>`;
 }
 
-function vendeurFieldHtml(sheetKey, rowIndex, colIdx, current){
-  return `<input type="text" list="gom-datalist" class="cell-input" value="${escapeAttr(current)}"
-    onblur="handleVendeurBlur(this, '${sheetKey}', ${rowIndex}, ${colIdx})">`;
+function vendeurSelectHtml(sheetKey, rowIndex, colIdx, current){
+  const names = DATA.gom.map(r => cell(r,0)).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  const known = !current || names.some(n => n.toLowerCase() === current.toLowerCase());
+  const opts = names.map(n => `<option value="${escapeAttr(n)}" ${n===current?'selected':''}>${escapeHtml(n)}</option>`).join('');
+  return `<select class="vendeur-select ${current?'':'empty'}" onchange="handleVendeurSelectChange(this, '${sheetKey}', ${rowIndex}, ${colIdx})">
+    <option value="" ${!current?'selected':''}>—</option>
+    ${!known ? `<option value="${escapeAttr(current)}" selected>${escapeHtml(current)}</option>` : ''}
+    ${opts}
+    <option value="__new__">+ Nouveau vendeur…</option>
+  </select>`;
+}
+function handleVendeurSelectChange(select, sheetKey, rowIndex, colIdx){
+  const val = select.value;
+  if(val === '__new__'){
+    pendingVendeurCtx = { sheetKey, rowIndex, colIdx };
+    document.getElementById('gom-nom').value = '';
+    document.getElementById('gom-lieu').value = '';
+    document.getElementById('gom-canal').value = '';
+    document.getElementById('gom-commentaire').value = '';
+    document.getElementById('gom-error').style.display = 'none';
+    openModal('modal-gom');
+    select.value = ''; // revient à vide en attendant la validation du modal
+    return;
+  }
+  saveCell(sheetKey, rowIndex, colIdx, val);
+  select.classList.toggle('empty', !val);
 }
 function evcbFieldHtml(sheetKey, rowIndex, colIdx, current){
   return `<input type="text" list="evcb-datalist" class="cell-input" value="${escapeAttr(current)}"
@@ -1085,9 +1279,43 @@ document.getElementById('cb-add-group').addEventListener('click', async () => {
 document.getElementById('ventes-add').addEventListener('click', async () => {
   const row = new Array(SHEETS.ventes.width).fill("");
   row[7] = "Terminé";
+  row[9] = new Date().toISOString().slice(0,10);
   await appendRow('ventes', row);
   await loadAll();
 });
+
+// Supprime une ligne dans le Gsheet (vraie suppression, pas juste un vidage de cellules).
+async function deleteRow(sheetKey, rowIndex){
+  const sheetId = SHEET_IDS[sheetKey];
+  if(sheetId === undefined){ showSaved('✕ échec : sheetId introuvable', true); return false; }
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`;
+  try{
+    await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+      requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex-1, endIndex: rowIndex } } }]
+    }) });
+    return true;
+  }catch(e){
+    showSaved('✕ échec suppression : ' + e.message, true);
+    return false;
+  }
+}
+
+async function deleteVenteRow(rowIndex){
+  if(!confirm('Supprimer cette vente ?')) return;
+  const ok = await deleteRow('ventes', rowIndex);
+  if(ok){ showSaved('✓ vente supprimée'); await loadAll(); }
+}
+
+async function duplicateVenteRow(rowIndex){
+  const row = DATA.ventes.find(r => r.rowIndex === rowIndex);
+  if(!row) return;
+  const newRow = new Array(SHEETS.ventes.width).fill("");
+  for(let i=0; i<SHEETS.ventes.width; i++) newRow[i] = cell(row, i);
+  newRow[9] = new Date().toISOString().slice(0,10); // date du jour sur la copie
+  await appendRow('ventes', newRow);
+  showSaved('✓ ligne dupliquée');
+  await loadAll();
+}
 
 /* ===================== IMPORT CSV (reprise historique) ===================== */
 
@@ -1285,15 +1513,18 @@ wireImport('gom-import-btn', 'gom-import-file', (rows, el) => importRefCSV('gom'
 wireImport('evcb-import-btn', 'evcb-import-file', (rows, el) => importRefCSV('evcb', rows, el));
 
 /* ===================== FILTRES / NAV ===================== */
-['event-search','event-filter-statut','event-filter-vendeur'].forEach(id => {
+['event-search','event-filter-event','event-filter-vendeur'].forEach(id => {
   document.getElementById(id).addEventListener('input', renderEvent);
   document.getElementById(id).addEventListener('change', renderEvent);
 });
-['cb-search','cb-filter-statut','cb-filter-vendeur'].forEach(id => {
+['cb-search','cb-filter-cb','cb-filter-vendeur'].forEach(id => {
   document.getElementById(id).addEventListener('input', renderCB);
   document.getElementById(id).addEventListener('change', renderCB);
 });
-document.getElementById('ventes-search').addEventListener('input', renderVentes);
+['ventes-search','ventes-filter-evcb'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderVentes);
+  document.getElementById(id).addEventListener('change', renderVentes);
+});
 
 document.getElementById('event-search').addEventListener('input', function(){ document.getElementById('event-search-x').classList.toggle('show', this.value.length>0); });
 document.getElementById('event-search-x').addEventListener('click', function(){ const i=document.getElementById('event-search'); i.value=''; this.classList.remove('show'); renderEvent(); });
