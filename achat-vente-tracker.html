@@ -104,7 +104,6 @@
   .kpi-sub{ font-size:0.76rem; color: var(--ink-soft); padding:6px 2px 18px; }
   .kpi-sub b{ color: var(--ink); font-weight:600; }
   .kpi-sub span:not(:last-child)::after{ content:"·"; margin:0 10px; color: var(--line); }
-  .kpi-note{ font-size:0.74rem; color: var(--ink-faint); font-style:italic; margin: 4px 0 20px; }
 
   /* ===== Toolbar ===== */
   .toolbar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding: 6px 0 18px; }
@@ -147,6 +146,9 @@
     font-weight:600; padding:7px 6px; border-bottom:1px solid var(--line); white-space:nowrap;
   }
   td{ padding:5px 5px; font-size:0.76rem; border-bottom:1px solid var(--line-soft); vertical-align:middle; white-space:nowrap; }
+  #cb-groups .table-scroll table{ table-layout: fixed; }
+  #cb-groups .table-scroll td{ padding:5px 4px; overflow:hidden; }
+  #cb-groups .table-scroll td input, #cb-groups .table-scroll td select{ width:100%; box-sizing:border-box; }
   tbody tr:last-child td{ border-bottom:none; }
   td.claim-icon{ width:1%; padding-right:2px; }
   .pencil{
@@ -234,6 +236,9 @@
 
   /* ===== Referentiels ===== */
   .ref-table{ background: var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .ref-table table{ table-layout: fixed; }
+  .ref-table td{ padding:6px 8px; }
+  .ref-table td input, .ref-table td select{ width:100%; box-sizing:border-box; }
 
   /* ===== Accueil ===== */
   .home-hero{ text-align:center; padding: 10px 0 30px; }
@@ -362,7 +367,6 @@
   <!-- ===================== ACHAT EVENT ===================== -->
   <div class="page" id="page-event">
     <div class="kpi-band" id="event-kpi"></div>
-    <div class="kpi-note">Recalculé dynamiquement selon les filtres actifs.</div>
     <div class="toolbar">
       <div class="search-wrap">
         <input type="text" id="event-search" placeholder="Event, claim...">
@@ -382,8 +386,6 @@
   <!-- ===================== ACHAT CB ===================== -->
   <div class="page" id="page-cb">
     <div class="kpi-band" id="cb-kpi"></div>
-    <div class="kpi-sub" id="cb-kpi-sub"></div>
-    <div class="kpi-note">Coût/album = Total ÷ Full (pas Nb albums).</div>
     <div class="toolbar">
       <div class="search-wrap">
         <input type="text" id="cb-search" placeholder="Comeback, store...">
@@ -403,7 +405,6 @@
   <!-- ===================== VENTES ===================== -->
   <div class="page" id="page-ventes">
     <div class="kpi-band" id="ventes-kpi"></div>
-    <div class="kpi-note">Recalculé dynamiquement selon les filtres actifs.</div>
     <div class="toolbar">
       <div class="search-wrap">
         <input type="text" id="ventes-search" placeholder="Event, item, acheteur...">
@@ -439,6 +440,7 @@
       <div class="toolbar-actions"><button onclick="openGomModal()">+ Ajouter</button></div>
     </div>
     <div class="table-scroll ref-table"><table>
+      <colgroup><col style="width:18%"><col style="width:14%"><col style="width:12%"><col></colgroup>
       <thead><tr><th>Nom GOM / Seller</th><th>Lieu</th><th>Canal</th><th>Commentaire</th></tr></thead>
       <tbody id="gom-body"></tbody>
     </table></div>
@@ -455,6 +457,7 @@
       <div class="toolbar-actions"><button onclick="openEvcbModal()">+ Ajouter</button></div>
     </div>
     <div class="table-scroll ref-table"><table>
+      <colgroup><col><col style="width:12%"><col style="width:28%"></colgroup>
       <thead><tr><th>Nom</th><th>Type</th><th>Commentaire</th></tr></thead>
       <tbody id="evcb-body"></tbody>
     </table></div>
@@ -998,21 +1001,23 @@ function renderCB(){
     <div class="kpi-card"><div class="label">Nb albums (full)</div><div class="value neutral">${nbFull}</div></div>
   `;
 
-  // Coût moyen par type d'album (Total / Full), groupé par valeur de colonne Album
-  const byAlbum = {};
-  rows.forEach(r => {
-    const alb = (cell(r,3) || '').trim();
-    if(!alb) return;
-    if(!byAlbum[alb]) byAlbum[alb] = { total:0, full:0 };
-    byAlbum[alb].total += cbRowTotal(r);
-    byAlbum[alb].full += num(r,5);
-  });
-  const subParts = Object.keys(byAlbum).sort().map(alb => {
-    const d = byAlbum[alb];
-    const avg = d.full ? d.total/d.full : 0;
-    return `<span>${escapeHtml(alb)} <b>${avg?avg.toFixed(2)+' €':'—'}</b></span>`;
-  });
-  document.getElementById('cb-kpi-sub').innerHTML = subParts.length ? ('Coût moyen / full — ' + subParts.join('')) : '';
+  // Coût moyen par catégorie d'album (Total / Full), calculé PAR CB — pas question de
+  // mélanger le POCA d'un CB avec le Digipack d'un autre, ça n'aurait aucun sens.
+  const ALBUM_CATS = ['POCA','DIGI','REG','VYN','NA'];
+  function albumBreakdown(grows){
+    const byCat = {};
+    grows.forEach(r => {
+      const cat = cell(r,3) || 'NA';
+      if(!byCat[cat]) byCat[cat] = { total:0, full:0 };
+      byCat[cat].total += cbRowTotal(r);
+      byCat[cat].full += num(r,5);
+    });
+    return ALBUM_CATS.filter(c => byCat[c]).map(c => {
+      const d = byCat[c];
+      const avg = d.full ? d.total/d.full : 0;
+      return `<span>${c} <b>${avg?avg.toFixed(2)+' €':'—'}</b></span>`;
+    }).join('');
+  }
 
   const groups = {};
   const order = [];
@@ -1045,7 +1050,15 @@ function renderCB(){
           <span>Total <b>${fmtEuro(gTotal)}</b></span>
         </div>
       </div>
+      <div class="kpi-sub" style="padding:0 16px 8px;">Coût moyen / full — ${albumBreakdown(grows) || '<span>—</span>'}</div>
       <div class="table-scroll"><table>
+        <colgroup>
+          <col style="width:3%"><col style="width:8%"><col style="width:7%"><col style="width:10%">
+          <col style="width:6%"><col style="width:4%"><col style="width:4%"><col style="width:4%">
+          <col style="width:11%"><col style="width:4%"><col style="width:5%"><col style="width:6%">
+          <col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:6%">
+          <col style="width:5%"><col style="width:2%">
+        </colgroup>
         <thead><tr>
           <th></th><th>Vendeur</th><th>Statut</th><th>Store</th><th>Album</th><th>Nb alb.</th><th>Full</th><th>Incl.</th>
           <th>POB / membre</th><th>Nb POB</th><th>Init</th><th>Payé</th>
@@ -1067,7 +1080,7 @@ function cbRowHtml(r){
       <td class="mpill">${vendeurSelectHtml('cb', r.rowIndex, 1, cell(r,1))}</td>
       <td class="mpill">${statutSelectHtml('cb', r.rowIndex, 16, cell(r,16))}</td>
       <td class="mfield mfield-left" data-mlabel="Store"><input type="text" class="cell-input" value="${escapeAttr(cell(r,2))}" onblur="saveCell('cb', ${r.rowIndex}, 2, this.value)"></td>
-      <td class="mfield" data-mlabel="Album"><input type="text" class="cell-input" value="${escapeAttr(cell(r,3))}" onblur="saveCell('cb', ${r.rowIndex}, 3, this.value); renderCB();"></td>
+      <td class="mfield" data-mlabel="Album">${albumSelectHtml('cb', r.rowIndex, 3, cell(r,3))}</td>
       <td class="mfield mfield-left" data-mlabel="Nb alb."><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,4))}" onblur="saveCell('cb', ${r.rowIndex}, 4, this.value)"></td>
       <td class="mfield" data-mlabel="Full"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,5))}" onblur="saveCell('cb', ${r.rowIndex}, 5, this.value); renderCB();"></td>
       <td class="mfield mfield-left" data-mlabel="Incl."><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('cb', ${r.rowIndex}, 6, this.value)"></td>
@@ -1199,6 +1212,12 @@ function canalSelectHtml(sheetKey, rowIndex, colIdx, current){
 function typeSelectHtml(sheetKey, rowIndex, colIdx, current){
   return `<select onchange="saveCell('${sheetKey}', ${rowIndex}, ${colIdx}, this.value)">
     <option ${current==='Event'?'selected':''}>Event</option><option ${current==='CB'?'selected':''}>CB</option>
+  </select>`;
+}
+function albumSelectHtml(sheetKey, rowIndex, colIdx, current){
+  const opts = ["POCA","DIGI","REG","VYN","NA"];
+  return `<select onchange="saveCell('${sheetKey}', ${rowIndex}, ${colIdx}, this.value); renderCB();">
+    ${opts.map(o=>`<option ${o===(current||'NA')?'selected':''}>${o}</option>`).join('')}
   </select>`;
 }
 
@@ -1365,7 +1384,7 @@ async function addEventClaim(eventId){
 }
 async function addCbClaim(cbId){
   const row = new Array(SHEETS.cb.width).fill("");
-  row[0] = cbId; row[10] = "Non"; row[16] = "En cours";
+  row[0] = cbId; row[3] = "NA"; row[10] = "Non"; row[16] = "En cours";
   await appendRow('cb', row);
   await loadAll();
 }
