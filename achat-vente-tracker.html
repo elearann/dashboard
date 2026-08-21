@@ -238,7 +238,8 @@
   .ref-table{ background: var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
   .ref-table table{ table-layout: fixed; }
   .ref-table td{ padding:6px 8px; }
-  .ref-table td input, .ref-table td select{ width:100%; box-sizing:border-box; }
+  #page-gom .ref-table input, #page-gom .ref-table select,
+  #page-evcb .ref-table input, #page-evcb .ref-table select{ width:100%; box-sizing:border-box; }
 
   /* ===== Accueil ===== */
   .home-hero{ text-align:center; padding: 10px 0 30px; }
@@ -457,7 +458,7 @@
       <div class="toolbar-actions"><button onclick="openEvcbModal()">+ Ajouter</button></div>
     </div>
     <div class="table-scroll ref-table"><table>
-      <colgroup><col><col style="width:12%"><col style="width:28%"></colgroup>
+      <colgroup><col><col style="width:10%"><col style="width:24%"></colgroup>
       <thead><tr><th>Nom</th><th>Type</th><th>Commentaire</th></tr></thead>
       <tbody id="evcb-body"></tbody>
     </table></div>
@@ -1048,9 +1049,9 @@ function renderCB(){
           <span>EMS <b>${fmtEuro(gEms)}</b></span>
           <span>Custom <b>${fmtEuro(gCustom)}</b></span>
           <span>Total <b>${fmtEuro(gTotal)}</b></span>
+          ${albumBreakdown(grows)}
         </div>
       </div>
-      <div class="kpi-sub" style="padding:0 16px 8px;">Coût moyen / full — ${albumBreakdown(grows) || '<span>—</span>'}</div>
       <div class="table-scroll"><table>
         <colgroup>
           <col style="width:3%"><col style="width:8%"><col style="width:7%"><col style="width:10%">
