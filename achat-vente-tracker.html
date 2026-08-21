@@ -416,7 +416,7 @@
       </div>
     </div>
     <div id="ventes-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;"></div>
-    <div class="table-scroll ref-table"><table>
+    <div class="table-scroll"><table>
       <thead><tr>
         <th>Event ou CB</th><th>Item</th><th>Acheteur</th><th>Prix vente</th><th>Prix achat</th><th>Bénéfices</th><th>Nb PC vendus</th><th>État</th><th>Commentaire</th><th>Date</th><th></th>
       </tr></thead>
@@ -678,6 +678,39 @@ const CALC_FORMULAS = {
   cb:    (r) => ({ 14: `=SUM(J${r},L${r}:N${r})`, 15: `=IFERROR(O${r}/F${r},"")`, 20: `=IFERROR((O${r}-J${r})/J${r},"")` }),
   ventes:(r) => ({ 5: `=D${r}-E${r}` }),
 };
+
+// Ajoute plusieurs lignes en 1 seul appel API (au lieu d'un appendRow par ligne) + 1 seul
+// batchUpdate pour poser les formules de tout le lot. Évite le 429 "quota dépassé" sur les
+// imports CSV, qui bouclaient auparavant en appendRow ligne par ligne (2 requêtes/ligne dès
+// qu'il y a des colonnes formule) et explosaient les 60 écritures/min de l'API Sheets.
+async function appendRowsBatch(sheetKey, rowsValuesArray){
+  if(!rowsValuesArray.length) return [];
+  const sheet = SHEETS[sheetKey];
+  const range = `${sheet.name}!A:${colLetter(sheet.width-1)}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  const resp = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ values: rowsValuesArray }) });
+  const updatedRange = resp.updates && resp.updates.updatedRange; // ex: ACHAT_EVENT!A5:O34
+  let startRow = null;
+  if(updatedRange){
+    const m = /![A-Z]+(\d+):/.exec(updatedRange);
+    if(m) startRow = parseInt(m[1], 10);
+  }
+  const newRowIndexes = [];
+  if(startRow){ for(let i=0; i<rowsValuesArray.length; i++) newRowIndexes.push(startRow + i); }
+
+  if(newRowIndexes.length && CALC_FORMULAS[sheetKey]){
+    const data = [];
+    newRowIndexes.forEach(rIdx => {
+      const formulas = CALC_FORMULAS[sheetKey](rIdx);
+      Object.entries(formulas).forEach(([idx, f]) => {
+        data.push({ range: `${sheet.name}!${colLetter(parseInt(idx,10))}${rIdx}`, values: [[f]] });
+      });
+    });
+    const burl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchUpdate`;
+    await apiFetch(burl, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ valueInputOption:'USER_ENTERED', data }) });
+  }
+  return newRowIndexes;
+}
 
 async function appendRow(sheetKey, rowValues){
   const sheet = SHEETS[sheetKey];
@@ -1389,29 +1422,54 @@ function pick(csvRow, ...names){
   return "";
 }
 
-async function ensureReferentiel(sheetKey, nom, extra){
-  if(!nom) return;
-  const known = DATA[sheetKey].some(r => cell(r,0).toLowerCase() === nom.toLowerCase());
-  if(known) return;
-  const row = sheetKey === 'gom' ? [nom, "", "", "(créé par import CSV — à qualifier)"] : [nom, extra || "Event", ""];
-  await appendRow(sheetKey, row);
-  DATA[sheetKey].push({ rowIndex: -1, cells: row }); // évite les doublons de qualification dans le même import
+// Collecte les référentiels manquants (GOM et/ou Events_CB) détectés dans un lot CSV,
+// sans écrire immédiatement — dédoublonne contre l'existant ET contre les doublons internes
+// au même fichier CSV. L'écriture se fait ensuite en un seul appendRowsBatch par onglet.
+function collectMissingReferentiels(csvRows, opts){
+  const { evcbNomFn, evcbType, gomNomFn } = opts;
+  const knownEvcb = new Set(DATA.evcb.map(r => cell(r,0).toLowerCase()));
+  const knownGom = new Set(DATA.gom.map(r => cell(r,0).toLowerCase()));
+  const seenEvcb = new Set(), seenGom = new Set();
+  const newEvcb = [], newGom = [];
+
+  csvRows.forEach(c => {
+    if(evcbNomFn){
+      const nom = evcbNomFn(c);
+      if(nom){
+        const key = nom.toLowerCase();
+        if(!knownEvcb.has(key) && !seenEvcb.has(key)){ newEvcb.push([nom, evcbType, ""]); seenEvcb.add(key); }
+      }
+    }
+    if(gomNomFn){
+      const nom = gomNomFn(c);
+      if(nom){
+        const key = nom.toLowerCase();
+        if(!knownGom.has(key) && !seenGom.has(key)){ newGom.push([nom, "", "", "(créé par import CSV — à qualifier)"]); seenGom.add(key); }
+      }
+    }
+  });
+  return { newEvcb, newGom };
 }
 
 // BUY (Excel) -> ACHAT_EVENT
 async function importEventCSV(csvRows, resultEl){
   resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
-  let added = 0;
-  for(const c of csvRows){
+
+  const { newEvcb, newGom } = collectMissingReferentiels(csvRows, {
+    evcbNomFn: c => pick(c, "Event / Nom ...", "Event", "event"),
+    evcbType: 'Event',
+    gomNomFn: c => pick(c, "Nom GOM/Seller", "Vendeur", "vendeur"),
+  });
+  if(newEvcb.length){ resultEl.textContent = `Ajout de ${newEvcb.length} event(s) au référentiel...`; await appendRowsBatch('evcb', newEvcb); }
+  if(newGom.length){ resultEl.textContent = `Ajout de ${newGom.length} vendeur(s) au référentiel...`; await appendRowsBatch('gom', newGom); }
+
+  const rowsToAdd = csvRows.map(c => {
     const eventNom = pick(c, "Event / Nom ...", "Event", "event");
-    if(!eventNom) continue;
-    await ensureReferentiel('evcb', eventNom, 'Event');
-    const vendeur = pick(c, "Nom GOM/Seller", "Vendeur", "vendeur");
-    await ensureReferentiel('gom', vendeur);
-    const row = [
+    if(!eventNom) return null;
+    return [
       eventNom,
       pick(c, "Claim", "claim"),
-      vendeur,
+      pick(c, "Nom GOM/Seller", "Vendeur", "vendeur"),
       pick(c, "Statut", "statut") || "Terminé",
       pick(c, "Coût initial", "Init", "init"),
       "Oui",
@@ -1425,25 +1483,33 @@ async function importEventCSV(csvRows, resultEl){
       new Date().toISOString().slice(0,10),
       new Date().toISOString().slice(0,10),
     ];
-    await appendRow('event', row);
-    added++;
+  }).filter(Boolean);
+
+  if(rowsToAdd.length){
+    resultEl.textContent = `Écriture de ${rowsToAdd.length} claim(s)...`;
+    await appendRowsBatch('event', rowsToAdd);
   }
-  resultEl.textContent = `${added} claim(s) importé(s) dans Achat Event.`;
+  resultEl.textContent = `${rowsToAdd.length} claim(s) importé(s) dans Achat Event.`;
   await loadAll();
 }
 
 // GH PT4/PT5 (Excel) -> ACHAT_CB
 async function importCbCSV(csvRows, resultEl, cbNomDefault){
   resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
-  let added = 0;
-  for(const c of csvRows){
+
+  const { newEvcb, newGom } = collectMissingReferentiels(csvRows, {
+    evcbNomFn: c => pick(c, "CB", "cb") || cbNomDefault,
+    evcbType: 'CB',
+    gomNomFn: c => pick(c, "GOM", "Vendeur", "vendeur"),
+  });
+  if(newEvcb.length){ resultEl.textContent = `Ajout de ${newEvcb.length} CB au référentiel...`; await appendRowsBatch('evcb', newEvcb); }
+  if(newGom.length){ resultEl.textContent = `Ajout de ${newGom.length} vendeur(s) au référentiel...`; await appendRowsBatch('gom', newGom); }
+
+  const rowsToAdd = csvRows.map(c => {
     const cbNom = pick(c, "CB", "cb") || cbNomDefault;
-    if(!cbNom) continue;
-    await ensureReferentiel('evcb', cbNom, 'CB');
-    const vendeur = pick(c, "GOM", "Vendeur", "vendeur");
-    await ensureReferentiel('gom', vendeur);
-    const row = [
-      cbNom, vendeur,
+    if(!cbNom) return null;
+    return [
+      cbNom, pick(c, "GOM", "Vendeur", "vendeur"),
       pick(c, "Store", "store"),
       pick(c, "Album", "album"),
       pick(c, "Nb albums", "nb_albums"),
@@ -1463,21 +1529,29 @@ async function importCbCSV(csvRows, resultEl, cbNomDefault){
       new Date().toISOString().slice(0,10),
       new Date().toISOString().slice(0,10),
     ];
-    await appendRow('cb', row);
-    added++;
+  }).filter(Boolean);
+
+  if(rowsToAdd.length){
+    resultEl.textContent = `Écriture de ${rowsToAdd.length} claim(s)...`;
+    await appendRowsBatch('cb', rowsToAdd);
   }
-  resultEl.textContent = `${added} claim(s) importé(s) dans Achat CB.`;
+  resultEl.textContent = `${rowsToAdd.length} claim(s) importé(s) dans Achat CB.`;
   await loadAll();
 }
 
 // SELL (Excel) -> VENTES
 async function importVentesCSV(csvRows, resultEl){
   resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
-  let added = 0;
-  for(const c of csvRows){
+
+  const { newEvcb } = collectMissingReferentiels(csvRows, {
+    evcbNomFn: c => pick(c, "Event / Nom ...", "Event ou CB", "event"),
+    evcbType: 'Event',
+  });
+  if(newEvcb.length){ resultEl.textContent = `Ajout de ${newEvcb.length} event/CB au référentiel...`; await appendRowsBatch('evcb', newEvcb); }
+
+  const rowsToAdd = csvRows.map(c => {
     const eventOuCb = pick(c, "Event / Nom ...", "Event ou CB", "event");
-    if(eventOuCb) await ensureReferentiel('evcb', eventOuCb, 'Event');
-    const row = [
+    return [
       eventOuCb,
       pick(c, "Item", "item"),
       pick(c, "Nom acheteur", "Acheteur", "acheteur"),
@@ -1489,10 +1563,13 @@ async function importVentesCSV(csvRows, resultEl){
       pick(c, "Commentaire", "commentaire"),
       new Date().toISOString().slice(0,10),
     ];
-    await appendRow('ventes', row);
-    added++;
+  });
+
+  if(rowsToAdd.length){
+    resultEl.textContent = `Écriture de ${rowsToAdd.length} vente(s)...`;
+    await appendRowsBatch('ventes', rowsToAdd);
   }
-  resultEl.textContent = `${added} vente(s) importée(s).`;
+  resultEl.textContent = `${rowsToAdd.length} vente(s) importée(s).`;
   await loadAll();
 }
 
@@ -1500,24 +1577,27 @@ async function importVentesCSV(csvRows, resultEl){
 async function importRefCSV(sheetKey, csvRows, resultEl){
   resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
   const existing = new Set(DATA[sheetKey].map(r => cell(r,0).toLowerCase()));
-  let added = 0, skipped = 0;
+  const rowsToAdd = [];
+  let skipped = 0;
   for(const c of csvRows){
-    let row;
+    let row, nom;
     if(sheetKey === 'gom'){
-      const nom = pick(c, "Nom GOM/Seller", "Nom GOM / Seller", "Nom", "nom");
+      nom = pick(c, "Nom GOM/Seller", "Nom GOM / Seller", "Nom", "nom");
       if(!nom || existing.has(nom.toLowerCase())){ skipped++; continue; }
       row = [nom, pick(c,"Lieu","lieu"), pick(c,"Canal","canal"), pick(c,"Commentaire","commentaire")];
-      existing.add(nom.toLowerCase());
     } else {
-      const nom = pick(c, "Nom", "nom");
+      nom = pick(c, "Nom", "nom");
       if(!nom || existing.has(nom.toLowerCase())){ skipped++; continue; }
       row = [nom, pick(c,"Type","type") || "Event", pick(c,"Commentaire","commentaire")];
-      existing.add(nom.toLowerCase());
     }
-    await appendRow(sheetKey, row);
-    added++;
+    existing.add(nom.toLowerCase());
+    rowsToAdd.push(row);
   }
-  resultEl.textContent = `${added} ajouté(s), ${skipped} déjà présent(s) (ignoré(s)).`;
+  if(rowsToAdd.length){
+    resultEl.textContent = `Écriture de ${rowsToAdd.length} ligne(s)...`;
+    await appendRowsBatch(sheetKey, rowsToAdd);
+  }
+  resultEl.textContent = `${rowsToAdd.length} ajouté(s), ${skipped} déjà présent(s) (ignoré(s)).`;
   await loadAll();
 }
 
