@@ -242,6 +242,1595 @@
   .home-note{ text-align:center; font-size:0.78rem; color: var(--ink-faint); font-style:italic; background: var(--group-bg); border:1px dashed var(--line); border-radius:10px; padding:14px; margin-top:24px; }
   #empty-state{ text-align:center; color: var(--ink-faint); font-size:0.85rem; padding:40px 20px; }
 
+  /* Colonne actions (dupliquer/supprimer) de Ventes : reste visible sans avoir à scroller le tableau */
+  @media (min-width:721px){
+    #page-ventes .table-scroll th:last-child,
+    #page-ventes .table-scroll td.row-actions{
+      position: sticky;
+      right: 0;
+      background: var(--surface);
+      box-shadow: -6px 0 6px -6px rgba(28,29,27,0.12);
+      z-index: 2;
+    }
+  }
+
+  @media (max-width:720px){
+    header{ padding:20px 16px 0; }
+    nav.main-nav{ padding:0 12px; justify-content:center; flex-wrap:wrap; overflow-x:visible; row-gap:2px; }
+    nav.main-nav .nav-item{ padding:10px 10px; font-size:0.8rem; }
+    .shell{ padding:16px 12px 40px; }
+    .kpi-band{ gap:8px; }
+    .kpi-card{ flex:0 0 calc(50% - 4px); min-width:0; padding:12px 14px; }
+    .toolbar{ flex-direction:column; align-items:stretch; }
+    .search-wrap{ width:100%; }
+    .toolbar select{ width:100%; }
+    .toolbar .multiselect{ width:100%; }
+    .toolbar .ms-toggle{ width:100%; text-align:left; }
+    .toolbar-spacer{ display:none; }
+    .toolbar-actions{ justify-content:flex-end; }
+
+    /* ===== Tables -> cartes (mockup achat-event.html validé) ===== */
+    .group{ background:transparent; border:none; border-radius:0; }
+    .group-head{ background:transparent; border:none; padding:16px 2px 8px; flex-wrap:wrap; row-gap:4px; }
+    .table-scroll{ overflow-x:visible; background:transparent; }
+    table{ display:block; width:100%; min-width:0; }
+    thead{ display:none; }
+    tbody{ display:block; }
+    tbody tr{
+      display:block; position:relative; background:var(--surface);
+      border:1px solid var(--line); border-radius:12px;
+      padding:14px 40px 6px 14px; margin:0 0 10px; box-shadow:0 1px 3px rgba(28,29,27,0.05);
+    }
+    tbody tr td{ display:block; float:none; width:100%!important; border:none; padding:0 0 10px; white-space:normal; }
+    tbody tr::after{ content:""; display:table; clear:both; }
+    .add-row{ background:transparent; border-top:none; padding:4px 2px 0; }
+
+    /* icône commentaire / actions -> coin haut droit de la carte */
+    #page-event tbody tr td.claim-icon,
+    #page-cb tbody tr td.claim-icon,
+    #page-ventes tbody tr td.row-actions{
+      position:absolute; top:12px; right:10px; width:auto!important; padding:0;
+    }
+    #page-ventes tbody tr td.row-actions{ display:flex; gap:2px; }
+
+    /* labels au-dessus de chaque champ */
+    tbody tr td[data-mlabel]::before{
+      content: attr(data-mlabel); display:block; font-size:0.62rem; text-transform:uppercase;
+      letter-spacing:0.05em; color: var(--ink-faint); margin-bottom:3px;
+    }
+    tbody tr td input, tbody tr td select, tbody tr td textarea{ width:100%!important; box-sizing:border-box; }
+
+    /* grille 2 colonnes pour les champs de saisie */
+    tbody tr td.mfield{ float:left; width:50%!important; clear:none; box-sizing:border-box; padding:0 10px 10px 0; }
+    tbody tr td.mfield-left{ clear:left; }
+    tbody tr td.mfield-full{ float:none; width:100%!important; clear:both; }
+
+    /* ligne de titre (claim) + pastilles vendeur/statut en haut de carte, hors grille */
+    #page-event tbody tr td.mtitle,
+    #page-ventes tbody tr td.mtitle{ font-size:0.95rem; padding-right:26px; }
+    #page-event tbody tr td.mpill, #page-cb tbody tr td.mpill{
+      float:left; width:auto!important; margin:0 8px 10px 0; padding:0;
+    }
+    #page-event tbody tr td.mpill select, #page-cb tbody tr td.mpill select{ width:auto!important; }
+
+    /* pastille couleur (dot) : affichée en ligne, à côté du label, plutôt qu'en bloc pleine largeur */
+    #page-event tbody tr td.pastille-cell, #page-cb tbody tr td.pastille-cell{
+      width:auto!important; float:left; clear:none; padding:0 0 10px 8px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="auth-bar">
+  <button id="btn-signin">Se connecter avec Google</button>
+</div>
+<div id="status-line"></div>
+<div id="setup-note">
+  Configuration requise : ouvre ce fichier avec un éditeur de texte, cherche <code>CLIENT_ID</code>
+  et <code>SPREADSHEET_ID</code> tout en haut du script, et vérifie les valeurs.
+</div>
+
+<header id="app-header" style="display:none;">
+  <h1>Suivi Achats & Ventes</h1>
+  <nav class="main-nav">
+    <div class="nav-item active" data-page="accueil">Accueil</div>
+    <div class="nav-item" data-page="event">Achat / Event</div>
+    <div class="nav-item" data-page="cb">Achat / CB</div>
+    <div class="nav-item" data-page="ventes">Ventes</div>
+    <div class="nav-item" data-page="referentiels">Référentiels</div>
+  </nav>
+</header>
+
+<div class="shell" id="shell">
+
+  <!-- ===================== ACCUEIL ===================== -->
+  <div class="page active" id="page-accueil">
+    <div class="home-hero"><p>Vue d'ensemble Event + CB confondus.</p></div>
+    <div class="kpi-band" id="home-kpi"></div>
+    <div class="home-note">KPI détaillés (par event/CB, coût net = dépensé − revendu) à affiner en P2.</div>
+  </div>
+
+  <!-- ===================== ACHAT EVENT ===================== -->
+  <div class="page" id="page-event">
+    <div class="kpi-band" id="event-kpi"></div>
+    <div class="kpi-note">Recalculé dynamiquement selon les filtres actifs.</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <input type="text" id="event-search" placeholder="Event, claim...">
+        <span class="x" id="event-search-x">×</span>
+      </div>
+      <div class="multiselect" id="event-filter-statut-ms"></div>
+      <select id="event-filter-event"><option value="">Tous les events</option></select>
+      <select id="event-filter-vendeur"><option value="">Tous les vendeurs</option></select>
+      <div class="toolbar-spacer"></div>
+      <div class="toolbar-actions">
+        <button class="secondary import-btn" id="event-import-btn">Importer un CSV</button>
+        <input type="file" id="event-import-file" accept=".csv" style="display:none;">
+        <button class="secondary import-btn" id="event-add-group">+ Nouvel event</button>
+      </div>
+    </div>
+    <div id="event-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;"></div>
+    <div id="event-groups"></div>
+  </div>
+
+  <!-- ===================== ACHAT CB ===================== -->
+  <div class="page" id="page-cb">
+    <div class="kpi-band" id="cb-kpi"></div>
+    <div class="kpi-sub" id="cb-kpi-sub"></div>
+    <div class="kpi-note">Coût/album = Total ÷ Full (pas Nb albums).</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <input type="text" id="cb-search" placeholder="Comeback, store...">
+        <span class="x" id="cb-search-x">×</span>
+      </div>
+      <div class="multiselect" id="cb-filter-statut-ms"></div>
+      <select id="cb-filter-cb"><option value="">Tous les CB</option></select>
+      <select id="cb-filter-vendeur"><option value="">Tous les vendeurs</option></select>
+      <div class="toolbar-spacer"></div>
+      <div class="toolbar-actions">
+        <button class="secondary import-btn" id="cb-import-btn">Importer un CSV</button>
+        <input type="file" id="cb-import-file" accept=".csv" style="display:none;">
+        <button class="secondary import-btn" id="cb-add-group">+ Nouveau CB</button>
+      </div>
+    </div>
+    <div id="cb-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;"></div>
+    <div id="cb-groups"></div>
+  </div>
+
+  <!-- ===================== VENTES ===================== -->
+  <div class="page" id="page-ventes">
+    <div class="kpi-band" id="ventes-kpi"></div>
+    <div class="kpi-note">Recalculé dynamiquement selon les filtres actifs.</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <input type="text" id="ventes-search" placeholder="Event, item, acheteur...">
+        <span class="x" id="ventes-search-x">×</span>
+      </div>
+      <select id="ventes-filter-evcb"><option value="">Tous les events / CB</option></select>
+      <div class="toolbar-spacer"></div>
+      <div class="toolbar-actions">
+        <button class="secondary import-btn" id="ventes-import-btn">Importer un CSV</button>
+        <input type="file" id="ventes-import-file" accept=".csv" style="display:none;">
+        <button class="icon-btn primary" id="ventes-add" title="Ajouter une vente">+</button>
+      </div>
+    </div>
+    <div id="ventes-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;"></div>
+    <div class="table-scroll ref-table"><table>
+      <thead><tr>
+        <th>Event ou CB</th><th>Item</th><th>Acheteur</th><th>Prix vente</th><th>Prix achat</th><th>Bénéfices</th><th>Nb PC vendus</th><th>État</th><th>Commentaire</th><th>Date</th><th></th>
+      </tr></thead>
+      <tbody id="ventes-body"></tbody>
+    </table></div>
+    <div id="ventes-empty" style="display:none;" class="home-note">Aucune vente enregistrée.</div>
+  </div>
+
+  <!-- ===================== REFERENTIELS ===================== -->
+  <div class="page" id="page-referentiels">
+    <div class="toolbar" style="padding-top:0;">
+      <div class="toolbar-spacer"></div>
+      <div class="toolbar-actions">
+        <button class="secondary import-btn" id="gom-import-btn">Importer un CSV (GOM)</button>
+        <input type="file" id="gom-import-file" accept=".csv" style="display:none;">
+        <button class="secondary import-btn" id="evcb-import-btn">Importer un CSV (Events/CB)</button>
+        <input type="file" id="evcb-import-file" accept=".csv" style="display:none;">
+      </div>
+    </div>
+    <div id="ref-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;text-align:right;"></div>
+
+    <div class="ref-block">
+      <div class="ref-block-head">
+        <h2>GOM</h2>
+        <button onclick="openGomModal()">+ Ajouter</button>
+      </div>
+      <div class="table-scroll ref-table"><table>
+        <thead><tr><th>Nom GOM / Seller</th><th>Lieu</th><th>Canal</th><th>Commentaire</th></tr></thead>
+        <tbody id="gom-body"></tbody>
+      </table></div>
+    </div>
+
+    <div class="ref-block">
+      <div class="ref-block-head">
+        <h2>Events & CB</h2>
+        <button onclick="openEvcbModal()">+ Ajouter</button>
+      </div>
+      <div class="table-scroll ref-table"><table>
+        <thead><tr><th>Nom</th><th>Type</th><th>Commentaire</th></tr></thead>
+        <tbody id="evcb-body"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===================== MODALES ===================== -->
+<div class="modal-overlay" id="modal-gom">
+  <div class="modal-box">
+    <div class="modal-head"><span>Nouveau GOM</span><button class="modal-close" onclick="closeModal('modal-gom')">×</button></div>
+    <div class="modal-hint">Lieu et Canal sont obligatoires à la création.</div>
+    <div class="modal-body">
+      <div class="modal-label">Nom GOM / Seller <span class="req">*</span></div>
+      <input type="text" id="gom-nom" placeholder="ex : atiny_ot8">
+      <div class="modal-label">Lieu <span class="req">*</span></div>
+      <input type="text" id="gom-lieu" placeholder="ex : France">
+      <div class="modal-label">Canal <span class="req">*</span></div>
+      <select id="gom-canal"><option value="">Choisir...</option><option>Instagram</option><option>Vinted</option><option>Autre</option></select>
+      <div class="modal-label">Commentaire (facultatif)</div>
+      <textarea id="gom-commentaire" placeholder="Contexte, incident..."></textarea>
+      <div class="modal-error" id="gom-error"></div>
+      <button class="modal-apply" onclick="submitGomModal()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-evcb">
+  <div class="modal-box">
+    <div class="modal-head"><span>Nouvel Event / CB</span><button class="modal-close" onclick="closeModal('modal-evcb')">×</button></div>
+    <div class="modal-body">
+      <div class="modal-label">Nom <span class="req">*</span></div>
+      <input type="text" id="evcb-nom" placeholder="ex : Golden Hour Part 6">
+      <div class="modal-label">Type <span class="req">*</span></div>
+      <select id="evcb-type"><option value="">Choisir...</option><option>Event</option><option>CB</option></select>
+      <div class="modal-label">Commentaire (facultatif)</div>
+      <textarea id="evcb-commentaire" placeholder="Contexte..."></textarea>
+      <div class="modal-error" id="evcb-error"></div>
+      <button class="modal-apply" onclick="submitEvcbModal()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-comment">
+  <div class="modal-box wide">
+    <div class="modal-head"><span id="comment-title">Commentaire</span><button class="modal-close" onclick="closeModal('modal-comment')">×</button></div>
+    <div class="modal-body">
+      <textarea id="comment-text" placeholder="Ton commentaire privé sur ce claim..." style="min-height:120px;"></textarea>
+      <button class="modal-apply" onclick="submitComment()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="global-saved"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+/* ===================== CONFIGURATION ===================== */
+const CLIENT_ID = "815063719481-1e32pi1caur7pv175qivvrlcddpfr6vs.apps.googleusercontent.com";
+const SPREADSHEET_ID = "1UV9H99W1t-t25bc8ZV2wxE0khOic87wJoP_c-zFVoiA";
+/* ============================================================ */
+
+const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
+let tokenClient, accessToken = null, tokenExpiresAt = 0;
+
+const SHEETS = {
+  event: { name: "ACHAT_EVENT", width: 16 }, // col P (idx15) = Frais en % d'init (calc)
+  cb:    { name: "ACHAT_CB",    width: 21 }, // col U (idx20) = Frais en % d'init (calc)
+  ventes:{ name: "VENTES",      width: 10 },
+  gom:   { name: "GOM",         width: 4  },
+  evcb:  { name: "EVENTS_CB",   width: 3  },
+};
+
+let DATA = { event: [], cb: [], ventes: [], gom: [], evcb: [] };
+let SHEET_IDS = {}; // sheetKey -> numeric sheetId (nécessaire pour supprimer une ligne)
+let openComment_ctx = null;
+
+const els = {
+  signin: document.getElementById('btn-signin'),
+  status: document.getElementById('status-line'),
+  setupNote: document.getElementById('setup-note'),
+  header: document.getElementById('app-header'),
+  shell: document.getElementById('shell'),
+  globalSaved: document.getElementById('global-saved'),
+};
+
+if(CLIENT_ID.startsWith("REMPLACE") || SPREADSHEET_ID.startsWith("REMPLACE")){
+  els.setupNote.style.display = "block";
+  els.signin.disabled = true;
+  setStatus("Configuration manquante (voir note ci-dessus).", true);
+}
+
+function setStatus(msg, isError){
+  els.status.textContent = msg || "";
+  els.status.classList.toggle('error', !!isError);
+}
+function showSaved(msg, isErr){
+  els.globalSaved.textContent = msg || (isErr ? '✕ échec' : '✓ enregistré');
+  els.globalSaved.classList.toggle('err', !!isErr);
+  els.globalSaved.classList.add('show');
+  clearTimeout(showSaved._t);
+  showSaved._t = setTimeout(()=> els.globalSaved.classList.remove('show'), 1800);
+}
+
+window.addEventListener('load', () => {
+  if(window.google && !CLIENT_ID.startsWith("REMPLACE")){
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID, scope: SCOPES, callback: () => {}
+    });
+  }
+});
+
+function requestToken(prompt){
+  return new Promise((resolve, reject) => {
+    if(!tokenClient){ reject(new Error('Client OAuth non initialisé.')); return; }
+    tokenClient.callback = (resp) => {
+      if(resp.error){ reject(new Error(resp.error)); return; }
+      accessToken = resp.access_token;
+      tokenExpiresAt = Date.now() + ((resp.expires_in || 3600) * 1000) - 60000;
+      resolve(accessToken);
+    };
+    tokenClient.requestAccessToken({ prompt });
+  });
+}
+
+els.signin.addEventListener('click', async () => {
+  try{ await requestToken('consent'); onSignedIn(); }
+  catch(e){ setStatus("Connexion refusée.", true); }
+});
+
+function onSignedIn(){
+  document.getElementById('auth-bar').style.display = "none";
+  els.header.style.display = "block";
+  els.shell.style.display = "block";
+  loadAll();
+}
+
+async function ensureFreshToken(){
+  if(!accessToken || Date.now() >= tokenExpiresAt){
+    try{ await requestToken(''); }
+    catch(e){
+      document.getElementById('auth-bar').style.display = 'flex';
+      els.header.style.display = "none";
+      els.shell.style.display = "none";
+      throw new Error('Session Google expirée, reconnecte-toi.');
+    }
+  }
+}
+
+async function apiFetch(url, options={}, _retried=false){
+  await ensureFreshToken();
+  const res = await fetch(url, { ...options, headers: { ...(options.headers||{}), Authorization: `Bearer ${accessToken}` } });
+  if(res.status === 401 && !_retried){ await requestToken(''); return apiFetch(url, options, true); }
+  if(!res.ok){ const t = await res.text(); throw new Error(`API ${res.status}: ${t}`); }
+  return res.json();
+}
+
+function colLetter(n){ // 0-based index -> A1 letter
+  let s = "", i = n + 1;
+  while(i > 0){ const m = (i - 1) % 26; s = String.fromCharCode(65+m) + s; i = Math.floor((i-1)/26); }
+  return s;
+}
+
+/* ===================== LOAD ===================== */
+async function loadAll(){
+  setStatus("Chargement...");
+  try{
+    if(Object.keys(SHEET_IDS).length === 0){
+      const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties(sheetId,title)`;
+      const meta = await apiFetch(metaUrl);
+      const byTitle = {};
+      (meta.sheets || []).forEach(s => { byTitle[s.properties.title] = s.properties.sheetId; });
+      Object.entries(SHEETS).forEach(([k, s]) => { if(byTitle[s.name] !== undefined) SHEET_IDS[k] = byTitle[s.name]; });
+    }
+    const ranges = Object.values(SHEETS).map(s => `${s.name}!A2:${colLetter(s.width-1)}`);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?` +
+      ranges.map(r => `ranges=${encodeURIComponent(r)}`).join('&');
+    const data = await apiFetch(url);
+    const vr = data.valueRanges || [];
+    const keys = Object.keys(SHEETS);
+    keys.forEach((k, idx) => {
+      const values = (vr[idx] && vr[idx].values) || [];
+      DATA[k] = values.map((r, i) => ({ rowIndex: i + 2, cells: r }));
+    });
+    setStatus("");
+    renderAll();
+  }catch(e){
+    setStatus("Erreur de chargement : " + e.message + " — vérifie que les onglets ACHAT_EVENT / ACHAT_CB / VENTES / GOM / EVENTS_CB existent bien.", true);
+  }
+}
+
+function cell(row, idx){ return (row.cells[idx] !== undefined && row.cells[idx] !== null) ? row.cells[idx] : ""; }
+function num(row, idx){ const v = parseFloat(String(cell(row,idx)).replace(',', '.')); return isNaN(v) ? 0 : v; }
+// Total recalculé côté client (indépendant du délai de recalcul serveur de la formule Sheets).
+function eventRowTotal(r){ return num(r,4) + num(r,6) + num(r,7) + num(r,8); } // Init+EMS+Custom+Dom
+function cbRowTotal(r){ return num(r,9) + num(r,11) + num(r,12) + num(r,13); } // Init+EMS+Custom+Dom
+
+/* ===================== SAVE HELPERS ===================== */
+// Écrit une seule cellule — ne touche jamais aux colonnes formule.
+async function saveCell(sheetKey, rowIndex, colIdx, value){
+  // Mise à jour optimiste du cache local, pour que les re-render immédiats (KPI, pastille) soient justes.
+  const row = DATA[sheetKey].find(r => r.rowIndex === rowIndex);
+  if(row) row.cells[colIdx] = value;
+
+  const sheet = SHEETS[sheetKey];
+  const range = `${sheet.name}!${colLetter(colIdx)}${rowIndex}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+  try{
+    await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ range, values: [[value]] }) });
+    showSaved();
+    return true;
+  }catch(e){
+    showSaved("✕ échec : " + e.message, true);
+    return false;
+  }
+}
+
+const CALC_FORMULAS = {
+  event: (r) => ({ 9: `=SUM(E${r},G${r}:I${r})`, 11: `=IFERROR(J${r}/K${r},"")`, 15: `=IFERROR((J${r}-E${r})/E${r},"")` }),
+  cb:    (r) => ({ 14: `=SUM(J${r},L${r}:N${r})`, 15: `=IFERROR(O${r}/F${r},"")`, 20: `=IFERROR((O${r}-J${r})/J${r},"")` }),
+  ventes:(r) => ({ 5: `=D${r}-E${r}` }),
+};
+
+async function appendRow(sheetKey, rowValues){
+  const sheet = SHEETS[sheetKey];
+  const range = `${sheet.name}!A:${colLetter(sheet.width-1)}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  const resp = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ values: [rowValues] }) });
+  const updatedRange = resp.updates && resp.updates.updatedRange; // e.g. ACHAT_EVENT!A5:O5
+  let newRowIndex = null;
+  if(updatedRange){
+    const m = /![A-Z]+(\d+):/.exec(updatedRange);
+    if(m) newRowIndex = parseInt(m[1], 10);
+  }
+  // Pose les formules sur la nouvelle ligne si la table en a
+  if(newRowIndex && CALC_FORMULAS[sheetKey]){
+    const formulas = CALC_FORMULAS[sheetKey](newRowIndex);
+    const data = Object.entries(formulas).map(([idx, f]) => ({
+      range: `${sheet.name}!${colLetter(parseInt(idx,10))}${newRowIndex}`,
+      values: [[f]]
+    }));
+    const burl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchUpdate`;
+    await apiFetch(burl, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ valueInputOption:'USER_ENTERED', data }) });
+  }
+  return newRowIndex;
+}
+
+/* ===================== RENDER ===================== */
+function renderAll(){
+  renderAccueil();
+  renderEvent();
+  renderCB();
+  renderVentes();
+  renderReferentiels();
+  populateVendeurFilters();
+  populateEvcbFilters();
+}
+
+function fmtEuro(n){ return n.toLocaleString('fr-FR', {minimumFractionDigits:0, maximumFractionDigits:2}) + ' €'; }
+
+function statutClass(s){
+  return { 'Terminé':'statut-termine', 'En cours':'statut-encours', 'Abandonné':'statut-abandonne', 'Perdu':'statut-perdu' }[s] || 'statut-encours';
+}
+
+function pastilleClass(costPerUnit){
+  if(!costPerUnit || costPerUnit <= 0) return '';
+  if(costPerUnit <= 6) return 'ok';
+  if(costPerUnit <= 12) return 'warn';
+  return 'high';
+}
+
+/* ---------- Accueil ---------- */
+function renderAccueil(){
+  const eventTotal = DATA.event.reduce((s,r) => s + eventRowTotal(r), 0);
+  const cbTotal = DATA.cb.reduce((s,r) => s + cbRowTotal(r), 0);
+  const claims = DATA.event.length + DATA.cb.length;
+  const revendu = DATA.ventes.reduce((s,r) => s + num(r,3), 0);
+  const depenseTotale = eventTotal + cbTotal;
+  const coutNet = depenseTotale - revendu;
+  document.getElementById('home-kpi').innerHTML = `
+    <div class="kpi-card"><div class="label">Dépense totale</div><div class="value">${fmtEuro(depenseTotale)}</div></div>
+    <div class="kpi-card"><div class="label">Claims / CB</div><div class="value neutral">${claims}</div></div>
+    <div class="kpi-card"><div class="label">Revendu au global</div><div class="value">${fmtEuro(revendu)}</div></div>
+    <div class="kpi-card"><div class="label">Coût net réel</div><div class="value">${fmtEuro(coutNet)}</div></div>
+  `;
+}
+
+/* ---------- Achat Event ---------- */
+function populateVendeurFilters(){
+  const names = DATA.gom.map(r => cell(r,0)).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  ['event-filter-vendeur','cb-filter-vendeur'].forEach(id => {
+    const sel = document.getElementById(id);
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Tous les vendeurs</option>' + names.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('');
+    sel.value = current;
+  });
+}
+
+// Filtres "Nom d'event / de CB" : basés sur le référentiel EVENTS_CB (par Type),
+// avec repli sur les noms distincts déjà présents dans les tables si le référentiel est incomplet.
+function populateEvcbFilters(){
+  const evcbEventNames = new Set(DATA.evcb.filter(r => cell(r,1) === 'Event').map(r => cell(r,0)).filter(Boolean));
+  DATA.event.forEach(r => { if(cell(r,0)) evcbEventNames.add(cell(r,0)); });
+  const evcbCbNames = new Set(DATA.evcb.filter(r => cell(r,1) === 'CB').map(r => cell(r,0)).filter(Boolean));
+  DATA.cb.forEach(r => { if(cell(r,0)) evcbCbNames.add(cell(r,0)); });
+
+  fillSelectPreserving('event-filter-event', 'Tous les events', Array.from(evcbEventNames).sort((a,b)=>a.localeCompare(b)));
+  fillSelectPreserving('cb-filter-cb', 'Tous les CB', Array.from(evcbCbNames).sort((a,b)=>a.localeCompare(b)));
+
+  const allNames = Array.from(new Set([...evcbEventNames, ...evcbCbNames])).sort((a,b)=>a.localeCompare(b));
+  fillSelectPreserving('ventes-filter-evcb', 'Tous les events / CB', allNames);
+}
+function fillSelectPreserving(id, placeholder, values){
+  const sel = document.getElementById(id);
+  if(!sel) return;
+  const current = sel.value;
+  sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('');
+  sel.value = current;
+}
+
+/* ---------- Filtre statut multi-select ---------- */
+let eventStatutFilter = [];
+let cbStatutFilter = [];
+const STATUT_OPTIONS = ["Terminé","En cours","Abandonné","Perdu"];
+
+function initStatutMultiselect(containerId, getSelected, setSelected, onChange){
+  const container = document.getElementById(containerId);
+  function renderToggleLabel(){
+    const sel = getSelected();
+    const toggle = container.querySelector('.ms-toggle');
+    toggle.textContent = sel.length === 0 ? 'Tous les statuts' : (sel.length === 1 ? sel[0] : `${sel.length} statuts`);
+  }
+  container.innerHTML = `
+    <button type="button" class="ms-toggle"></button>
+    <div class="ms-panel">
+      ${STATUT_OPTIONS.map(o => `<label><input type="checkbox" value="${escapeAttr(o)}"> ${escapeHtml(o)}</label>`).join('')}
+      <div class="ms-clear">Réinitialiser</div>
+    </div>`;
+  const panel = container.querySelector('.ms-panel');
+  const toggle = container.querySelector('.ms-toggle');
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.ms-panel.open').forEach(p => { if(p !== panel) p.classList.remove('open'); });
+    panel.classList.toggle('open');
+  });
+  panel.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      let sel = getSelected();
+      if(cb.checked) sel.push(cb.value); else sel = sel.filter(v => v !== cb.value);
+      setSelected(sel);
+      renderToggleLabel();
+      onChange();
+    });
+  });
+  panel.querySelector('.ms-clear').addEventListener('click', () => {
+    setSelected([]);
+    panel.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+    renderToggleLabel();
+    onChange();
+    panel.classList.remove('open');
+  });
+  renderToggleLabel();
+}
+document.addEventListener('click', (e) => {
+  if(!e.target.closest('.multiselect')) document.querySelectorAll('.ms-panel.open').forEach(p => p.classList.remove('open'));
+});
+initStatutMultiselect('event-filter-statut-ms', () => eventStatutFilter, (v) => eventStatutFilter = v, () => renderEvent());
+initStatutMultiselect('cb-filter-statut-ms', () => cbStatutFilter, (v) => cbStatutFilter = v, () => renderCB());
+
+function renderEvent(){
+  const q = (document.getElementById('event-search').value || '').trim().toLowerCase();
+  const stFilter = eventStatutFilter; // array, [] = tous
+  const evFilter = document.getElementById('event-filter-event').value;
+  const vFilter = document.getElementById('event-filter-vendeur').value;
+
+  let rows = DATA.event.filter(r => {
+    if(q && !(cell(r,1).toLowerCase().includes(q) || cell(r,0).toLowerCase().includes(q))) return false;
+    if(stFilter.length && !stFilter.includes(cell(r,3))) return false;
+    if(evFilter && cell(r,0) !== evFilter) return false;
+    if(vFilter && cell(r,2) !== vFilter) return false;
+    return true;
+  });
+
+  // KPI band (sur les lignes filtrées)
+  const claims = rows.length;
+  const initSum = rows.reduce((s,r)=>s+num(r,4),0);
+  const frais = rows.reduce((s,r)=>s+num(r,6)+num(r,7)+num(r,8),0);
+  const total = rows.reduce((s,r)=>s+eventRowTotal(r),0);
+  const nbPC = rows.reduce((s,r)=>s+num(r,10),0);
+  const coutParPC = nbPC ? total/nbPC : 0;
+  document.getElementById('event-kpi').innerHTML = `
+    <div class="kpi-card"><div class="label">Claims</div><div class="value neutral">${claims}</div></div>
+    <div class="kpi-card"><div class="label">Coût initial</div><div class="value neutral">${fmtEuro(initSum)}</div></div>
+    <div class="kpi-card"><div class="label">Frais (EMS+custom+dom)</div><div class="value neutral">${fmtEuro(frais)}</div></div>
+    <div class="kpi-card"><div class="label">Coût total</div><div class="value">${fmtEuro(total)}</div></div>
+    <div class="kpi-card"><div class="label">Nb PC</div><div class="value neutral">${nbPC}</div></div>
+    <div class="kpi-card"><div class="label">Coût moyen / PC</div><div class="value">${coutParPC ? coutParPC.toFixed(2)+' €' : '—'}</div></div>
+  `;
+
+  // Groupes par Event
+  const groups = {};
+  const order = [];
+  rows.forEach(r => {
+    const g = cell(r,0) || '(sans event)';
+    if(!groups[g]){ groups[g] = []; order.push(g); }
+    groups[g].push(r);
+  });
+
+  const wrap = document.getElementById('event-groups');
+  if(!order.length){ wrap.innerHTML = `<div id="empty-state">Aucune fiche pour ce filtre.</div>`; return; }
+
+  wrap.innerHTML = order.map(g => {
+    const grows = groups[g];
+    const gTotal = grows.reduce((s,r)=>s+eventRowTotal(r),0);
+    const gPC = grows.reduce((s,r)=>s+num(r,10),0);
+    return `
+    <div class="group" data-group="${escapeAttr(g)}">
+      <div class="group-head">
+        <div class="collapse-btn" onclick="this.closest('.group').classList.toggle('collapsed')">▾</div>
+        <div class="title">${escapeHtml(g)}</div>
+        <div class="sub-kpis"><span>${grows.length} claims · <b>${fmtEuro(gTotal)}</b> · ${gPC} PC</span></div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr>
+          <th></th><th>Claim</th><th>Vendeur</th><th>Statut</th><th>Init</th><th>Payé</th>
+          <th>EMS</th><th>Custom</th><th>Dom</th><th>Total</th><th>Nb PC</th><th>€/PC</th><th>Frais %</th><th></th>
+        </tr></thead>
+        <tbody>${grows.map(r => eventRowHtml(r)).join('')}</tbody>
+      </table></div>
+      <div class="add-row"><button class="secondary" onclick="addEventClaim(${JSON.stringify(g).replace(/"/g,'&quot;')})">+ Ajouter un claim</button></div>
+    </div>`;
+  }).join('');
+}
+
+function eventRowHtml(r){
+  const total = eventRowTotal(r), pc = num(r,10), cpp = pc ? total/pc : 0;
+  const comment = cell(r,12);
+  return `
+    <tr data-row="${r.rowIndex}">
+      <td class="claim-icon"><button class="pencil ${comment?'has-comment':''}" title="Commentaire" onclick="openCommentModal('event', ${r.rowIndex}, ${JSON.stringify(cell(r,1)||'ce claim').replace(/"/g,'&quot;')})">✎</button></td>
+      <td class="mtitle"><input class="cell-input claim-text-input" value="${escapeAttr(cell(r,1))}" onblur="saveCell('event', ${r.rowIndex}, 1, this.value)"></td>
+      <td class="mpill">${vendeurSelectHtml('event', r.rowIndex, 2, cell(r,2))}</td>
+      <td class="mpill">${statutSelectHtml('event', r.rowIndex, 3, cell(r,3))}</td>
+      <td class="mfield mfield-left" data-mlabel="Init"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,4))}" onblur="saveCell('event', ${r.rowIndex}, 4, this.value)"></td>
+      <td class="mfield" data-mlabel="Payé">${ouiNonSelectHtml('event', r.rowIndex, 5, cell(r,5))}</td>
+      <td class="mfield mfield-left" data-mlabel="EMS"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('event', ${r.rowIndex}, 6, this.value)"></td>
+      <td class="mfield" data-mlabel="Custom"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,7))}" onblur="saveCell('event', ${r.rowIndex}, 7, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Dom"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,8))}" onblur="saveCell('event', ${r.rowIndex}, 8, this.value)"></td>
+      <td class="cost-cell readonly-val mfield" data-mlabel="Total">${total?fmtEuro(total):'—'}</td>
+      <td class="mfield mfield-left" data-mlabel="Nb PC"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,10))}" onblur="saveCell('event', ${r.rowIndex}, 10, this.value)"></td>
+      <td class="readonly-val mfield" data-mlabel="€/PC">${cpp?cpp.toFixed(2)+' €':'—'}</td>
+      <td class="readonly-val mfield mfield-left" data-mlabel="Frais % d'init">${fraisPctText(num(r,4), total)}</td>
+      <td class="pastille-cell"><span class="price-dot ${pastilleClass(cpp)}" title="Coût / PC"></span></td>
+    </tr>`;
+}
+
+// Frais en % d'init = surcoût (EMS+custom+dom) par rapport au coût d'init, en %.
+function fraisPctText(init, total){
+  if(!init) return '—';
+  return (((total - init) / init) * 100).toFixed(1) + ' %';
+}
+
+/* ---------- Achat CB ---------- */
+function renderCB(){
+  const q = (document.getElementById('cb-search').value || '').trim().toLowerCase();
+  const stFilter = cbStatutFilter; // array, [] = tous
+  const cbNameFilter = document.getElementById('cb-filter-cb').value;
+  const vFilter = document.getElementById('cb-filter-vendeur').value;
+
+  let rows = DATA.cb.filter(r => {
+    if(q && !(cell(r,2).toLowerCase().includes(q) || cell(r,0).toLowerCase().includes(q))) return false;
+    if(stFilter.length && !stFilter.includes(cell(r,16))) return false;
+    if(cbNameFilter && cell(r,0) !== cbNameFilter) return false;
+    if(vFilter && cell(r,1) !== vFilter) return false;
+    return true;
+  });
+
+  const claims = rows.length;
+  const initSum = rows.reduce((s,r)=>s+num(r,9),0);
+  const frais = rows.reduce((s,r)=>s+num(r,11)+num(r,12)+num(r,13),0);
+  const total = rows.reduce((s,r)=>s+cbRowTotal(r),0);
+  const nbFull = rows.reduce((s,r)=>s+num(r,5),0);
+  document.getElementById('cb-kpi').innerHTML = `
+    <div class="kpi-card"><div class="label">Claims</div><div class="value neutral">${claims}</div></div>
+    <div class="kpi-card"><div class="label">Coût initial</div><div class="value neutral">${fmtEuro(initSum)}</div></div>
+    <div class="kpi-card"><div class="label">Frais (EMS+custom+dom)</div><div class="value neutral">${fmtEuro(frais)}</div></div>
+    <div class="kpi-card"><div class="label">Coût total</div><div class="value">${fmtEuro(total)}</div></div>
+    <div class="kpi-card"><div class="label">Nb albums (full)</div><div class="value neutral">${nbFull}</div></div>
+  `;
+
+  // Coût moyen par type d'album (Total / Full), groupé par valeur de colonne Album
+  const byAlbum = {};
+  rows.forEach(r => {
+    const alb = (cell(r,3) || '').trim();
+    if(!alb) return;
+    if(!byAlbum[alb]) byAlbum[alb] = { total:0, full:0 };
+    byAlbum[alb].total += cbRowTotal(r);
+    byAlbum[alb].full += num(r,5);
+  });
+  const subParts = Object.keys(byAlbum).sort().map(alb => {
+    const d = byAlbum[alb];
+    const avg = d.full ? d.total/d.full : 0;
+    return `<span>${escapeHtml(alb)} <b>${avg?avg.toFixed(2)+' €':'—'}</b></span>`;
+  });
+  document.getElementById('cb-kpi-sub').innerHTML = subParts.length ? ('Coût moyen / full — ' + subParts.join('')) : '';
+
+  const groups = {};
+  const order = [];
+  rows.forEach(r => {
+    const g = cell(r,0) || '(sans CB)';
+    if(!groups[g]){ groups[g] = []; order.push(g); }
+    groups[g].push(r);
+  });
+
+  const wrap = document.getElementById('cb-groups');
+  if(!order.length){ wrap.innerHTML = `<div id="empty-state">Aucune fiche pour ce filtre.</div>`; return; }
+
+  wrap.innerHTML = order.map(g => {
+    const grows = groups[g];
+    const gAlbums = grows.reduce((s,r)=>s+num(r,4),0);
+    const gInit = grows.reduce((s,r)=>s+num(r,9),0);
+    const gEms = grows.reduce((s,r)=>s+num(r,11),0);
+    const gCustom = grows.reduce((s,r)=>s+num(r,12),0);
+    const gTotal = grows.reduce((s,r)=>s+cbRowTotal(r),0);
+    return `
+    <div class="group" data-group="${escapeAttr(g)}">
+      <div class="group-head">
+        <div class="collapse-btn" onclick="this.closest('.group').classList.toggle('collapsed')">▾</div>
+        <div class="title">${escapeHtml(g)}</div>
+        <div class="sub-kpis">
+          <span>${gAlbums} albums · <b>${fmtEuro(gInit)}</b> init</span>
+          <span>EMS <b>${fmtEuro(gEms)}</b></span>
+          <span>Custom <b>${fmtEuro(gCustom)}</b></span>
+          <span>Total <b>${fmtEuro(gTotal)}</b></span>
+        </div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr>
+          <th></th><th>Vendeur</th><th>Statut</th><th>Store</th><th>Album</th><th>Nb alb.</th><th>Full</th><th>Incl.</th>
+          <th>POB / membre</th><th>Nb POB</th><th>Init</th><th>Payé</th>
+          <th>EMS</th><th>Custom</th><th>Dom</th><th>Total</th><th>Frais %</th><th></th>
+        </tr></thead>
+        <tbody>${grows.map(r => cbRowHtml(r)).join('')}</tbody>
+      </table></div>
+      <div class="add-row"><button class="secondary" onclick="addCbClaim(${JSON.stringify(g).replace(/"/g,'&quot;')})">+ Ajouter un claim</button></div>
+    </div>`;
+  }).join('');
+}
+
+function cbRowHtml(r){
+  const total = cbRowTotal(r), full = num(r,5), cpa = full ? total/full : 0;
+  const comment = cell(r,17);
+  return `
+    <tr data-row="${r.rowIndex}">
+      <td class="claim-icon"><button class="pencil ${comment?'has-comment':''}" title="Commentaire" onclick="openCommentModal('cb', ${r.rowIndex}, ${JSON.stringify(cell(r,1)||'ce claim').replace(/"/g,'&quot;')})">✎</button></td>
+      <td class="mpill">${vendeurSelectHtml('cb', r.rowIndex, 1, cell(r,1))}</td>
+      <td class="mpill">${statutSelectHtml('cb', r.rowIndex, 16, cell(r,16))}</td>
+      <td class="mfield mfield-left" data-mlabel="Store"><input type="text" class="cell-input" value="${escapeAttr(cell(r,2))}" onblur="saveCell('cb', ${r.rowIndex}, 2, this.value)"></td>
+      <td class="mfield" data-mlabel="Album"><input type="text" class="cell-input" value="${escapeAttr(cell(r,3))}" onblur="saveCell('cb', ${r.rowIndex}, 3, this.value); renderCB();"></td>
+      <td class="mfield mfield-left" data-mlabel="Nb alb."><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,4))}" onblur="saveCell('cb', ${r.rowIndex}, 4, this.value)"></td>
+      <td class="mfield" data-mlabel="Full"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,5))}" onblur="saveCell('cb', ${r.rowIndex}, 5, this.value); renderCB();"></td>
+      <td class="mfield mfield-left" data-mlabel="Incl."><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('cb', ${r.rowIndex}, 6, this.value)"></td>
+      <td class="pob-cell mfield" data-mlabel="POB / membre"><input type="text" value="${escapeAttr(cell(r,7))}" onblur="saveCell('cb', ${r.rowIndex}, 7, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Nb POB"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,8))}" onblur="saveCell('cb', ${r.rowIndex}, 8, this.value)"></td>
+      <td class="mfield" data-mlabel="Init"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,9))}" onblur="saveCell('cb', ${r.rowIndex}, 9, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Payé">${ouiNonSelectHtml('cb', r.rowIndex, 10, cell(r,10))}</td>
+      <td class="mfield" data-mlabel="EMS"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,11))}" onblur="saveCell('cb', ${r.rowIndex}, 11, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Custom"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,12))}" onblur="saveCell('cb', ${r.rowIndex}, 12, this.value)"></td>
+      <td class="mfield" data-mlabel="Dom"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,13))}" onblur="saveCell('cb', ${r.rowIndex}, 13, this.value)"></td>
+      <td class="cost-cell readonly-val mfield mfield-left" data-mlabel="Total">${total?fmtEuro(total):'—'}</td>
+      <td class="readonly-val mfield" data-mlabel="Frais % d'init">${fraisPctText(num(r,9), total)}</td>
+      <td class="pastille-cell"><span class="price-dot ${pastilleClass(cpa)}" title="Coût / album"></span></td>
+    </tr>`;
+}
+
+/* ---------- Ventes ---------- */
+function renderVentes(){
+  const q = (document.getElementById('ventes-search').value || '').trim().toLowerCase();
+  const evcbFilter = document.getElementById('ventes-filter-evcb').value;
+  let rows = DATA.ventes.filter(r => {
+    if(evcbFilter && cell(r,0) !== evcbFilter) return false;
+    if(!q) return true;
+    return cell(r,0).toLowerCase().includes(q) || cell(r,1).toLowerCase().includes(q) || cell(r,2).toLowerCase().includes(q);
+  });
+
+  const nbVentes = rows.length;
+  const prixVenteTotal = rows.reduce((s,r)=>s+num(r,3),0);
+  const prixAchatTotal = rows.reduce((s,r)=>s+num(r,4),0);
+  const benefices = prixVenteTotal - prixAchatTotal;
+  document.getElementById('ventes-kpi').innerHTML = `
+    <div class="kpi-card"><div class="label">Nb ventes</div><div class="value neutral">${nbVentes}</div></div>
+    <div class="kpi-card"><div class="label">Prix vente total</div><div class="value">${fmtEuro(prixVenteTotal)}</div></div>
+    <div class="kpi-card"><div class="label">Prix achat total</div><div class="value neutral">${fmtEuro(prixAchatTotal)}</div></div>
+    <div class="kpi-card"><div class="label">Bénéfices</div><div class="value">${fmtEuro(benefices)}</div></div>
+  `;
+
+  const body = document.getElementById('ventes-body');
+  document.getElementById('ventes-empty').style.display = rows.length ? 'none' : 'block';
+  body.innerHTML = rows.map(r => {
+    const benef = num(r,3) - num(r,4);
+    return `
+    <tr data-row="${r.rowIndex}">
+      <td class="mtitle mpill">${evcbSelectHtml('ventes', r.rowIndex, 0, cell(r,0))}</td>
+      <td class="mfield mfield-left" data-mlabel="Item"><input type="text" class="cell-input vwide" value="${escapeAttr(cell(r,1))}" onblur="saveCell('ventes', ${r.rowIndex}, 1, this.value)"></td>
+      <td class="mfield" data-mlabel="Acheteur"><input type="text" class="cell-input vwide" value="${escapeAttr(cell(r,2))}" onblur="saveCell('ventes', ${r.rowIndex}, 2, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Prix vente"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,3))}" onblur="saveCell('ventes', ${r.rowIndex}, 3, this.value); renderVentes();"></td>
+      <td class="mfield" data-mlabel="Prix achat"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,4))}" onblur="saveCell('ventes', ${r.rowIndex}, 4, this.value); renderVentes();"></td>
+      <td class="cost-cell readonly-val mfield mfield-left" data-mlabel="Bénéfices">${fmtEuro(benef)}</td>
+      <td class="mfield" data-mlabel="Nb PC vendus"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('ventes', ${r.rowIndex}, 6, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="État">${statutSelectHtml('ventes', r.rowIndex, 7, cell(r,7))}</td>
+      <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input vwide-comment" value="${escapeAttr(cell(r,8))}" onblur="saveCell('ventes', ${r.rowIndex}, 8, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Date"><input type="text" class="cell-input date-input" placeholder="AAAA-MM-JJ" value="${escapeAttr(cell(r,9))}" onblur="saveCell('ventes', ${r.rowIndex}, 9, this.value)"></td>
+      <td class="row-actions">
+        <button type="button" title="Dupliquer (date du jour)" onclick="duplicateVenteRow(${r.rowIndex})">⧉</button>
+        <button type="button" class="del" title="Supprimer" onclick="deleteVenteRow(${r.rowIndex})">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* ---------- Referentiels ---------- */
+function renderReferentiels(){
+  document.getElementById('gom-body').innerHTML = DATA.gom.map(r => `
+    <tr data-row="${r.rowIndex}">
+      <td class="mtitle" data-mlabel="Nom GOM / Seller"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,0))}" onblur="saveCell('gom', ${r.rowIndex}, 0, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Lieu"><input type="text" class="cell-input" value="${escapeAttr(cell(r,1))}" onblur="saveCell('gom', ${r.rowIndex}, 1, this.value)"></td>
+      <td class="mfield" data-mlabel="Canal">${canalSelectHtml('gom', r.rowIndex, 2, cell(r,2))}</td>
+      <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,3))}" onblur="saveCell('gom', ${r.rowIndex}, 3, this.value)"></td>
+    </tr>`).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--ink-faint);">Aucun GOM pour l'instant.</td></tr>`;
+
+  document.getElementById('evcb-body').innerHTML = DATA.evcb.map(r => `
+    <tr data-row="${r.rowIndex}">
+      <td class="mtitle" data-mlabel="Nom"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,0))}" onblur="saveCell('evcb', ${r.rowIndex}, 0, this.value)"></td>
+      <td class="mfield mfield-full" data-mlabel="Type">${typeSelectHtml('evcb', r.rowIndex, 1, cell(r,1))}</td>
+      <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,2))}" onblur="saveCell('evcb', ${r.rowIndex}, 2, this.value)"></td>
+    </tr>`).join('') || `<tr><td colspan="3" style="text-align:center;color:var(--ink-faint);">Aucun event/CB pour l'instant.</td></tr>`;
+}
+
+/* ===================== WIDGETS RÉUTILISABLES ===================== */
+function statutSelectHtml(sheetKey, rowIndex, colIdx, current){
+  const opts = ["Terminé","En cours","Abandonné","Perdu"];
+  return `<select class="statut-pill ${statutClass(current)}" onchange="this.className='statut-pill '+({'Terminé':'statut-termine','En cours':'statut-encours','Abandonné':'statut-abandonne','Perdu':'statut-perdu'}[this.value]||''); saveCell('${sheetKey}', ${rowIndex}, ${colIdx}, this.value); ${sheetKey==='cb'?'renderCB();':sheetKey==='event'?'renderEvent();':''}">
+    ${opts.map(o=>`<option ${o===current?'selected':''}>${o}</option>`).join('')}
+  </select>`;
+}
+function ouiNonSelectHtml(sheetKey, rowIndex, colIdx, current){
+  return `<select onchange="saveCell('${sheetKey}', ${rowIndex}, ${colIdx}, this.value)">
+    <option ${current==='Oui'?'selected':''}>Oui</option><option ${current==='Non'?'selected':''}>Non</option>
+  </select>`;
+}
+function canalSelectHtml(sheetKey, rowIndex, colIdx, current){
+  const opts = ["Instagram","Vinted","Autre"];
+  return `<select onchange="saveCell('${sheetKey}', ${rowIndex}, ${colIdx}, this.value)">
+    <option value="" ${!current?'selected':''}>—</option>
+    ${opts.map(o=>`<option ${o===current?'selected':''}>${o}</option>`).join('')}
+  </select>`;
+}
+function typeSelectHtml(sheetKey, rowIndex, colIdx, current){
+  return `<select onchange="saveCell('${sheetKey}', ${rowIndex}, ${colIdx}, this.value)">
+    <option ${current==='Event'?'selected':''}>Event</option><option ${current==='CB'?'selected':''}>CB</option>
+  </select>`;
+}
+
+function vendeurSelectHtml(sheetKey, rowIndex, colIdx, current){
+  const names = DATA.gom.map(r => cell(r,0)).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  const known = !current || names.some(n => n.toLowerCase() === current.toLowerCase());
+  const opts = names.map(n => `<option value="${escapeAttr(n)}" ${n===current?'selected':''}>${escapeHtml(n)}</option>`).join('');
+  return `<select class="vendeur-select ${current?'':'empty'}" onchange="handleVendeurSelectChange(this, '${sheetKey}', ${rowIndex}, ${colIdx})">
+    <option value="" ${!current?'selected':''}>—</option>
+    ${!known ? `<option value="${escapeAttr(current)}" selected>${escapeHtml(current)}</option>` : ''}
+    ${opts}
+    <option value="__new__">+ Nouveau vendeur…</option>
+  </select>`;
+}
+function handleVendeurSelectChange(select, sheetKey, rowIndex, colIdx){
+  const val = select.value;
+  if(val === '__new__'){
+    pendingVendeurCtx = { sheetKey, rowIndex, colIdx };
+    document.getElementById('gom-nom').value = '';
+    document.getElementById('gom-lieu').value = '';
+    document.getElementById('gom-canal').value = '';
+    document.getElementById('gom-commentaire').value = '';
+    document.getElementById('gom-error').style.display = 'none';
+    openModal('modal-gom');
+    select.value = ''; // revient à vide en attendant la validation du modal
+    return;
+  }
+  saveCell(sheetKey, rowIndex, colIdx, val);
+  select.classList.toggle('empty', !val);
+}
+function evcbSelectHtml(sheetKey, rowIndex, colIdx, current){
+  const names = DATA.evcb.map(r => cell(r,0)).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  const known = !current || names.some(n => n.toLowerCase() === current.toLowerCase());
+  const opts = names.map(n => `<option value="${escapeAttr(n)}" ${n===current?'selected':''}>${escapeHtml(n)}</option>`).join('');
+  return `<select class="vendeur-select ${current?'':'empty'}" onchange="handleEvcbSelectChange(this, '${sheetKey}', ${rowIndex}, ${colIdx})">
+    <option value="" ${!current?'selected':''}>—</option>
+    ${!known ? `<option value="${escapeAttr(current)}" selected>${escapeHtml(current)}</option>` : ''}
+    ${opts}
+    <option value="__new__">+ Nouveau…</option>
+  </select>`;
+}
+function handleEvcbSelectChange(select, sheetKey, rowIndex, colIdx){
+  const val = select.value;
+  if(val === '__new__'){
+    pendingEvcbCtx = { sheetKey, rowIndex, colIdx };
+    document.getElementById('evcb-nom').value = '';
+    document.getElementById('evcb-type').value = '';
+    document.getElementById('evcb-commentaire').value = '';
+    document.getElementById('evcb-error').style.display = 'none';
+    openModal('modal-evcb');
+    select.value = ''; // revient à vide en attendant la validation du modal
+    return;
+  }
+  saveCell(sheetKey, rowIndex, colIdx, val);
+  select.classList.toggle('empty', !val);
+  renderVentes();
+}
+
+function ensureDatalists(){
+  let dl = document.getElementById('gom-datalist');
+  if(!dl){ dl = document.createElement('datalist'); dl.id='gom-datalist'; document.body.appendChild(dl); }
+  dl.innerHTML = DATA.gom.map(r => `<option value="${escapeAttr(cell(r,0))}">`).join('');
+  let dl2 = document.getElementById('evcb-datalist');
+  if(!dl2){ dl2 = document.createElement('datalist'); dl2.id='evcb-datalist'; document.body.appendChild(dl2); }
+  dl2.innerHTML = DATA.evcb.map(r => `<option value="${escapeAttr(cell(r,0))}">`).join('');
+}
+
+let pendingVendeurCtx = null;
+function handleVendeurBlur(input, sheetKey, rowIndex, colIdx){
+  const val = input.value.trim();
+  const known = DATA.gom.some(r => cell(r,0).toLowerCase() === val.toLowerCase());
+  if(!val || known){ saveCell(sheetKey, rowIndex, colIdx, val); return; }
+  pendingVendeurCtx = { sheetKey, rowIndex, colIdx };
+  document.getElementById('gom-nom').value = val;
+  document.getElementById('gom-lieu').value = '';
+  document.getElementById('gom-canal').value = '';
+  document.getElementById('gom-commentaire').value = '';
+  document.getElementById('gom-error').style.display = 'none';
+  openModal('modal-gom');
+}
+
+let pendingEvcbCtx = null;
+
+/* ===================== MODALES ===================== */
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+  if(id === 'modal-gom') pendingVendeurCtx = null;
+  if(id === 'modal-evcb') pendingEvcbCtx = null;
+}
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => { if(e.target === overlay) closeModal(overlay.id); });
+});
+
+function openGomModal(){
+  pendingVendeurCtx = null;
+  document.getElementById('gom-nom').value = '';
+  document.getElementById('gom-lieu').value = '';
+  document.getElementById('gom-canal').value = '';
+  document.getElementById('gom-commentaire').value = '';
+  document.getElementById('gom-error').style.display = 'none';
+  openModal('modal-gom');
+}
+async function submitGomModal(){
+  const nom = document.getElementById('gom-nom').value.trim();
+  const lieu = document.getElementById('gom-lieu').value.trim();
+  const canal = document.getElementById('gom-canal').value;
+  const commentaire = document.getElementById('gom-commentaire').value.trim();
+  const errEl = document.getElementById('gom-error');
+  if(!nom || !lieu || !canal){ errEl.textContent = 'Nom, Lieu et Canal sont obligatoires.'; errEl.style.display='block'; return; }
+  try{
+    await appendRow('gom', [nom, lieu, canal, commentaire]);
+    closeModal('modal-gom');
+    await loadAll();
+    if(pendingVendeurCtx){
+      const ctx = pendingVendeurCtx; pendingVendeurCtx = null;
+      await saveCell(ctx.sheetKey, ctx.rowIndex, ctx.colIdx, nom);
+      renderAll();
+    }
+    showSaved('✓ GOM ajouté');
+  }catch(e){ errEl.textContent = 'Erreur : ' + e.message; errEl.style.display='block'; }
+}
+
+function openEvcbModal(){
+  pendingEvcbCtx = null;
+  document.getElementById('evcb-nom').value = '';
+  document.getElementById('evcb-type').value = '';
+  document.getElementById('evcb-commentaire').value = '';
+  document.getElementById('evcb-error').style.display = 'none';
+  openModal('modal-evcb');
+}
+async function submitEvcbModal(){
+  const nom = document.getElementById('evcb-nom').value.trim();
+  const type = document.getElementById('evcb-type').value;
+  const commentaire = document.getElementById('evcb-commentaire').value.trim();
+  const errEl = document.getElementById('evcb-error');
+  if(!nom || !type){ errEl.textContent = 'Nom et Type sont obligatoires.'; errEl.style.display='block'; return; }
+  try{
+    await appendRow('evcb', [nom, type, commentaire]);
+    closeModal('modal-evcb');
+    await loadAll();
+    if(pendingEvcbCtx){
+      const ctx = pendingEvcbCtx; pendingEvcbCtx = null;
+      await saveCell(ctx.sheetKey, ctx.rowIndex, ctx.colIdx, nom);
+      renderAll();
+    }
+    showSaved('✓ Ajouté au référentiel');
+  }catch(e){ errEl.textContent = 'Erreur : ' + e.message; errEl.style.display='block'; }
+}
+
+function openCommentModal(sheetKey, rowIndex, label){
+  const colIdx = sheetKey === 'event' ? 12 : 17;
+  const row = DATA[sheetKey].find(r => r.rowIndex === rowIndex);
+  openComment_ctx = { sheetKey, rowIndex, colIdx };
+  document.getElementById('comment-title').textContent = 'Commentaire — ' + label;
+  document.getElementById('comment-text').value = row ? cell(row, colIdx) : '';
+  openModal('modal-comment');
+}
+async function submitComment(){
+  if(!openComment_ctx) return;
+  const { sheetKey, rowIndex, colIdx } = openComment_ctx;
+  const val = document.getElementById('comment-text').value;
+  await saveCell(sheetKey, rowIndex, colIdx, val);
+  closeModal('modal-comment');
+  await loadAll();
+}
+
+/* ===================== AJOUT DE LIGNES ===================== */
+async function addEventClaim(eventName){
+  const row = new Array(SHEETS.event.width).fill("");
+  row[0] = eventName; row[3] = "En cours"; row[5] = "Non";
+  await appendRow('event', row);
+  await loadAll();
+}
+async function addCbClaim(cbName){
+  const row = new Array(SHEETS.cb.width).fill("");
+  row[0] = cbName; row[10] = "Non"; row[16] = "En cours";
+  await appendRow('cb', row);
+  await loadAll();
+}
+document.getElementById('event-add-group').addEventListener('click', async () => {
+  const name = prompt("Nom du nouvel event :");
+  if(!name || !name.trim()) return;
+  const known = DATA.evcb.some(r => cell(r,0).toLowerCase() === name.trim().toLowerCase());
+  if(!known) await appendRow('evcb', [name.trim(), 'Event', '']);
+  await addEventClaim(name.trim());
+});
+document.getElementById('cb-add-group').addEventListener('click', async () => {
+  const name = prompt("Nom du nouveau CB :");
+  if(!name || !name.trim()) return;
+  const known = DATA.evcb.some(r => cell(r,0).toLowerCase() === name.trim().toLowerCase());
+  if(!known) await appendRow('evcb', [name.trim(), 'CB', '']);
+  await addCbClaim(name.trim());
+});
+document.getElementById('ventes-add').addEventListener('click', async () => {
+  const row = new Array(SHEETS.ventes.width).fill("");
+  row[7] = "Terminé";
+  row[9] = new Date().toISOString().slice(0,10);
+  await appendRow('ventes', row);
+  await loadAll();
+});
+
+// Supprime une ligne dans le Gsheet (vraie suppression, pas juste un vidage de cellules).
+async function deleteRow(sheetKey, rowIndex){
+  const sheetId = SHEET_IDS[sheetKey];
+  if(sheetId === undefined){ showSaved('✕ échec : sheetId introuvable', true); return false; }
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`;
+  try{
+    await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+      requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex-1, endIndex: rowIndex } } }]
+    }) });
+    return true;
+  }catch(e){
+    showSaved('✕ échec suppression : ' + e.message, true);
+    return false;
+  }
+}
+
+async function deleteVenteRow(rowIndex){
+  if(!confirm('Supprimer cette vente ?')) return;
+  const ok = await deleteRow('ventes', rowIndex);
+  if(ok){ showSaved('✓ vente supprimée'); await loadAll(); }
+}
+
+async function duplicateVenteRow(rowIndex){
+  const row = DATA.ventes.find(r => r.rowIndex === rowIndex);
+  if(!row) return;
+  const newRow = new Array(SHEETS.ventes.width).fill("");
+  for(let i=0; i<SHEETS.ventes.width; i++) newRow[i] = cell(row, i);
+  newRow[9] = new Date().toISOString().slice(0,10); // date du jour sur la copie
+  await appendRow('ventes', newRow);
+  showSaved('✓ ligne dupliquée');
+  await loadAll();
+}
+
+/* ===================== IMPORT CSV (reprise historique) ===================== */
+
+function parseCSV(text){
+  // RFC4180-ish parser, gère les champs quotés avec virgules/retours à la ligne/guillemets échappés
+  const rows = [];
+  let row = [], field = "", inQuotes = false, i = 0;
+  const len = text.length;
+  while(i < len){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    } else {
+      if(c === '"'){ inQuotes = true; i++; continue; }
+      if(c === ','){ row.push(field); field = ""; i++; continue; }
+      if(c === '\r'){ i++; continue; }
+      if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
+      field += c; i++; continue;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  if(!rows.length) return [];
+  const headers = rows[0].map(h => h.trim());
+  return rows.slice(1).filter(r => r.length > 1 || r[0]).map(r => {
+    const obj = {};
+    headers.forEach((h, idx) => obj[h] = (r[idx]||"").trim());
+    return obj;
+  });
+}
+
+function pick(csvRow, ...names){
+  for(const n of names){ if(csvRow[n] !== undefined && csvRow[n] !== "") return csvRow[n]; }
+  return "";
+}
+
+async function ensureReferentiel(sheetKey, nom, extra){
+  if(!nom) return;
+  const known = DATA[sheetKey].some(r => cell(r,0).toLowerCase() === nom.toLowerCase());
+  if(known) return;
+  const row = sheetKey === 'gom' ? [nom, "", "", "(créé par import CSV — à qualifier)"] : [nom, extra || "Event", ""];
+  await appendRow(sheetKey, row);
+  DATA[sheetKey].push({ rowIndex: -1, cells: row }); // évite les doublons de qualification dans le même import
+}
+
+// BUY (Excel) -> ACHAT_EVENT
+async function importEventCSV(csvRows, resultEl){
+  resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
+  let added = 0;
+  for(const c of csvRows){
+    const eventNom = pick(c, "Event / Nom ...", "Event", "event");
+    if(!eventNom) continue;
+    await ensureReferentiel('evcb', eventNom, 'Event');
+    const vendeur = pick(c, "Nom GOM/Seller", "Vendeur", "vendeur");
+    await ensureReferentiel('gom', vendeur);
+    const row = [
+      eventNom,
+      pick(c, "Claim", "claim"),
+      vendeur,
+      pick(c, "Statut", "statut") || "Terminé",
+      pick(c, "Coût initial", "Init", "init"),
+      "Oui",
+      pick(c, "EMS", "ems"),
+      pick(c, "Custom", "custom"),
+      pick(c, "Dom", "dom"),
+      "", // Coût total (calc)
+      pick(c, "Nb de PC", "Nb PC", "nb_pc"),
+      "", // Coût/PC (calc)
+      pick(c, "Commentaire", "commentaire"),
+      new Date().toISOString().slice(0,10),
+      new Date().toISOString().slice(0,10),
+    ];
+    await appendRow('event', row);
+    added++;
+  }
+  resultEl.textContent = `${added} claim(s) importé(s) dans Achat Event.`;
+  await loadAll();
+}
+
+// GH PT4/PT5 (Excel) -> ACHAT_CB
+async function importCbCSV(csvRows, resultEl, cbNomDefault){
+  resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
+  let added = 0;
+  for(const c of csvRows){
+    const cbNom = pick(c, "CB", "cb") || cbNomDefault;
+    if(!cbNom) continue;
+    await ensureReferentiel('evcb', cbNom, 'CB');
+    const vendeur = pick(c, "GOM", "Vendeur", "vendeur");
+    await ensureReferentiel('gom', vendeur);
+    const row = [
+      cbNom, vendeur,
+      pick(c, "Store", "store"),
+      pick(c, "Album", "album"),
+      pick(c, "Nb albums", "nb_albums"),
+      pick(c, "Full", "full"),
+      pick(c, "inclusion", "Inclusion"),
+      (pick(c, "POB", "pob") + (pick(c,"Member","member") ? " — " + pick(c,"Member","member") : "")).trim(),
+      pick(c, "Nb pob", "Nb POB", "nb_pob"),
+      pick(c, "Init", "init"),
+      pick(c, "Init payé ?", "init_paye") || "Oui",
+      pick(c, "EMS", "ems"),
+      pick(c, "Custom", "custom"),
+      pick(c, "Doms", "Dom", "dom"),
+      "", // Total (calc)
+      "", // Coût/album (calc)
+      "Terminé",
+      "",
+      new Date().toISOString().slice(0,10),
+      new Date().toISOString().slice(0,10),
+    ];
+    await appendRow('cb', row);
+    added++;
+  }
+  resultEl.textContent = `${added} claim(s) importé(s) dans Achat CB.`;
+  await loadAll();
+}
+
+// SELL (Excel) -> VENTES
+async function importVentesCSV(csvRows, resultEl){
+  resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
+  let added = 0;
+  for(const c of csvRows){
+    const eventOuCb = pick(c, "Event / Nom ...", "Event ou CB", "event");
+    if(eventOuCb) await ensureReferentiel('evcb', eventOuCb, 'Event');
+    const row = [
+      eventOuCb,
+      pick(c, "Item", "item"),
+      pick(c, "Nom acheteur", "Acheteur", "acheteur"),
+      pick(c, "Prix vente", "prix_vente"),
+      pick(c, "Prix achat", "prix_achat"),
+      "", // Bénéfices (calc)
+      pick(c, "Nb PC vendue", "Nb PC vendus", "nb_pc"),
+      pick(c, "État", "etat") || "Terminé",
+      pick(c, "Commentaire", "commentaire"),
+      new Date().toISOString().slice(0,10),
+    ];
+    await appendRow('ventes', row);
+    added++;
+  }
+  resultEl.textContent = `${added} vente(s) importée(s).`;
+  await loadAll();
+}
+
+// Import référentiel direct (GOM ou Events_CB)
+async function importRefCSV(sheetKey, csvRows, resultEl){
+  resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
+  const existing = new Set(DATA[sheetKey].map(r => cell(r,0).toLowerCase()));
+  let added = 0, skipped = 0;
+  for(const c of csvRows){
+    let row;
+    if(sheetKey === 'gom'){
+      const nom = pick(c, "Nom GOM/Seller", "Nom GOM / Seller", "Nom", "nom");
+      if(!nom || existing.has(nom.toLowerCase())){ skipped++; continue; }
+      row = [nom, pick(c,"Lieu","lieu"), pick(c,"Canal","canal"), pick(c,"Commentaire","commentaire")];
+      existing.add(nom.toLowerCase());
+    } else {
+      const nom = pick(c, "Nom", "nom");
+      if(!nom || existing.has(nom.toLowerCase())){ skipped++; continue; }
+      row = [nom, pick(c,"Type","type") || "Event", pick(c,"Commentaire","commentaire")];
+      existing.add(nom.toLowerCase());
+    }
+    await appendRow(sheetKey, row);
+    added++;
+  }
+  resultEl.textContent = `${added} ajouté(s), ${skipped} déjà présent(s) (ignoré(s)).`;
+  await loadAll();
+}
+
+function wireImport(btnId, fileId, handler){
+  const btn = document.getElementById(btnId);
+  const file = document.getElementById(fileId);
+  btn.addEventListener('click', () => file.click());
+  file.addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if(!f) return;
+    const resultEl = document.getElementById(btnId.replace('-btn','-result')) || document.getElementById('ref-import-result');
+    resultEl.textContent = "Lecture du fichier...";
+    try{
+      const text = await f.text();
+      const rows = parseCSV(text);
+      await handler(rows, resultEl);
+    }catch(err){
+      resultEl.textContent = "Erreur : " + err.message;
+    }
+    file.value = "";
+  });
+}
+
+wireImport('event-import-btn', 'event-import-file', importEventCSV);
+wireImport('cb-import-btn', 'cb-import-file', (rows, el) => importCbCSV(rows, el, null));
+wireImport('ventes-import-btn', 'ventes-import-file', importVentesCSV);
+wireImport('gom-import-btn', 'gom-import-file', (rows, el) => importRefCSV('gom', rows, el));
+wireImport('evcb-import-btn', 'evcb-import-file', (rows, el) => importRefCSV('evcb', rows, el));
+
+/* ===================== FILTRES / NAV ===================== */
+['event-search','event-filter-event','event-filter-vendeur'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderEvent);
+  document.getElementById(id).addEventListener('change', renderEvent);
+});
+['cb-search','cb-filter-cb','cb-filter-vendeur'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderCB);
+  document.getElementById(id).addEventListener('change', renderCB);
+});
+['ventes-search','ventes-filter-evcb'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderVentes);
+  document.getElementById(id).addEventListener('change', renderVentes);
+});
+
+document.getElementById('event-search').addEventListener('input', function(){ document.getElementById('event-search-x').classList.toggle('show', this.value.length>0); });
+document.getElementById('event-search-x').addEventListener('click', function(){ const i=document.getElementById('event-search'); i.value=''; this.classList.remove('show'); renderEvent(); });
+document.getElementById('cb-search').addEventListener('input', function(){ document.getElementById('cb-search-x').classList.toggle('show', this.value.length>0); });
+document.getElementById('cb-search-x').addEventListener('click', function(){ const i=document.getElementById('cb-search'); i.value=''; this.classList.remove('show'); renderCB(); });
+document.getElementById('ventes-search').addEventListener('input', function(){ document.getElementById('ventes-search-x').classList.toggle('show', this.value.length>0); });
+document.getElementById('ventes-search-x').addEventListener('click', function(){ const i=document.getElementById('ventes-search'); i.value=''; this.classList.remove('show'); renderVentes(); });
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    item.classList.add('active');
+    document.getElementById('page-' + item.dataset.page).classList.add('active');
+  });
+});
+
+/* ===================== UTILS ===================== */
+function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s); }
+
+// Ré-injecte les datalists à chaque render global
+const _renderAllOriginal = renderAll;
+renderAll = function(){ _renderAllOriginal(); ensureDatalists(); };
+</script>
+
+</body>
+</html><!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi Achats & Ventes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #fafafa;
+    --surface: #ffffff;
+    --group-bg: #fcfcfb;
+    --line: #e4e4e1;
+    --line-soft: #eeeeec;
+    --ink: #1c1d1b;
+    --ink-soft: #6b6c68;
+    --ink-faint: #9b9c97;
+    --accent: #2f5d54;
+    --accent-soft: #e4ede9;
+    --amber: #b8862f;
+    --amber-soft: #f6ecd9;
+    --danger: #a34a3a;
+    --danger-soft: #f3e4e1;
+    --grey-dot: #c7c8c3;
+  }
+  *{box-sizing:border-box;}
+  html,body{max-width:100%;overflow-x:hidden;}
+  body{
+    margin:0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{
+    font-family:'Inter',sans-serif;
+    font-size:0.82rem;
+    font-weight:500;
+    background: var(--accent);
+    color:#fff;
+    border:none;
+    padding:9px 16px;
+    cursor:pointer;
+    border-radius:6px;
+  }
+  button.secondary{ background: transparent; color: var(--ink-soft); border:1px solid var(--line); }
+  button.secondary:hover{ background: var(--line-soft); }
+  button:hover{ opacity:0.92; }
+  button:disabled{ opacity:0.5; cursor:default; }
+  select, input[type="text"], input[type="number"]{
+    font-family:'Inter',sans-serif;
+    font-size:0.82rem;
+    padding:7px 10px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  /* ===== Auth ===== */
+  #auth-bar{ display:flex; justify-content:center; padding:16px; gap:10px; }
+  #status-line{ text-align:center; font-size:0.78rem; color: var(--ink-faint); min-height:18px; padding-bottom:6px; }
+  #status-line.error{ color: var(--danger); }
+  #setup-note{
+    max-width:600px; margin:40px auto; padding:18px 20px; background: var(--surface);
+    border:1px solid var(--line); border-radius:8px; font-size:0.85rem; line-height:1.6;
+    color: var(--ink-soft); display:none;
+  }
+  #setup-note code{ color: var(--accent); }
+  #global-saved{
+    position:fixed; bottom:20px; right:20px; background: var(--accent); color:#fff;
+    font-size:0.8rem; padding:9px 16px; border-radius:8px; opacity:0; transition:opacity .25s;
+    pointer-events:none; z-index:80; box-shadow:0 4px 14px rgba(0,0,0,0.15);
+  }
+  #global-saved.show{ opacity:1; }
+  #global-saved.err{ background: var(--danger); }
+
+  /* ===== Header + nav ===== */
+  header{ padding: 26px 24px 0; text-align:center; }
+  header h1{ font-family:'Fraunces', serif; font-weight:600; font-size:1.5rem; margin:0 0 16px; letter-spacing:-0.01em; }
+  nav.main-nav{
+    display:flex; justify-content:center; gap:4px; border-bottom:1px solid var(--line);
+    max-width:1320px; margin:0 auto; padding:0 24px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  nav.main-nav::-webkit-scrollbar{ display:none; }
+  nav.main-nav .nav-item{
+    font-size:0.85rem; font-weight:500; color: var(--ink-soft); padding:12px 16px; cursor:pointer;
+    white-space:nowrap; border-bottom:2px solid transparent; flex-shrink:0;
+  }
+  nav.main-nav .nav-item:hover{ color: var(--ink); }
+  nav.main-nav .nav-item.active{ color: var(--accent); border-bottom-color: var(--accent); font-weight:600; }
+
+  .shell{ max-width:1320px; margin:0 auto; padding:24px 24px 60px; display:none; }
+  .page{ display:none; }
+  .page.active{ display:block; }
+
+  /* ===== KPI band ===== */
+  .kpi-band{ display:flex; gap:16px; flex-wrap:wrap; margin-bottom:8px; }
+  .kpi-card{ flex:1; min-width:140px; background: var(--surface); border:1px solid var(--line); border-radius:10px; padding:14px 16px; box-shadow:0 1px 2px rgba(28,29,27,0.03); }
+  .kpi-card .label{ font-size:0.65rem; text-transform:uppercase; letter-spacing:0.05em; color: var(--ink-faint); margin-bottom:6px; }
+  .kpi-card .value{ font-family:'Fraunces', serif; font-weight:600; font-size:1.2rem; color: var(--accent); }
+  .kpi-card .value.neutral{ color: var(--ink); }
+  .kpi-sub{ font-size:0.76rem; color: var(--ink-soft); padding:6px 2px 18px; }
+  .kpi-sub b{ color: var(--ink); font-weight:600; }
+  .kpi-sub span:not(:last-child)::after{ content:"·"; margin:0 10px; color: var(--line); }
+  .kpi-note{ font-size:0.74rem; color: var(--ink-faint); font-style:italic; margin: 4px 0 20px; }
+
+  /* ===== Toolbar ===== */
+  .toolbar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding: 6px 0 18px; }
+  .search-wrap{ position:relative; width:220px; max-width:100%; }
+  .search-wrap input{ width:100%; padding-right:28px; }
+  .search-wrap .x{ position:absolute; right:8px; top:50%; transform:translateY(-50%); color: var(--ink-faint); font-size:1.05rem; cursor:pointer; display:none; }
+  .search-wrap .x.show{ display:block; }
+  .toolbar select{ flex-shrink:0; }
+  .toolbar-spacer{ flex:1; }
+  .toolbar-actions{ display:flex; gap:8px; align-items:center; }
+  .icon-btn{
+    background: var(--surface); color: var(--ink-soft); border:1px solid var(--line);
+    width:38px; height:38px; padding:0; border-radius:8px; font-size:1.15rem; font-weight:400;
+    display:flex; align-items:center; justify-content:center; line-height:1;
+  }
+  .icon-btn:hover{ background: var(--accent-soft); color: var(--accent); border-color: var(--accent-soft); }
+  .icon-btn.primary{ background: var(--accent); color:#fff; border:none; }
+  .import-btn{ font-size:0.8rem; padding:9px 14px; white-space:nowrap; }
+
+  /* ===== Groupes ===== */
+  .group{ background: var(--group-bg); border:1px solid var(--line); border-radius:10px; margin-bottom:16px; overflow:hidden; }
+  .group-head{ display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid var(--line); background:#fcfcfb; }
+  .collapse-btn{
+    width:30px; height:30px; border-radius:50%; border:1px solid var(--line); background:#fff; color: var(--ink-soft);
+    flex-shrink:0; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.8rem; transition: transform 0.15s;
+  }
+  .collapse-btn:hover{ border-color: var(--accent); color: var(--accent); }
+  .group.collapsed .collapse-btn{ transform: rotate(-90deg); }
+  .group.collapsed .table-scroll, .group.collapsed .add-row{ display:none; }
+  .group-head .title{ font-family:'Fraunces', serif; font-weight:600; font-size:1.02rem; flex-shrink:0; }
+  .group-head .sub-kpis{ display:flex; flex-wrap:wrap; font-size:0.74rem; color: var(--ink-soft); margin-left:auto; text-align:right; }
+  .group-head .sub-kpis span{ margin-left:16px; white-space:nowrap; }
+  .group-head .sub-kpis b{ color: var(--ink); }
+
+  /* ===== Table ===== */
+  .table-scroll{ overflow-x:auto; background: var(--surface); }
+  table{ width:100%; border-collapse:collapse; }
+  thead th{
+    text-align:left; font-size:0.6rem; text-transform:uppercase; letter-spacing:0.03em; color: var(--ink-faint);
+    font-weight:600; padding:7px 6px; border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  td{ padding:5px 5px; font-size:0.76rem; border-bottom:1px solid var(--line-soft); vertical-align:middle; white-space:nowrap; }
+  tbody tr:last-child td{ border-bottom:none; }
+  td.claim-icon{ width:1%; padding-right:2px; }
+  .pencil{
+    flex-shrink:0; width:22px; height:22px; border-radius:5px; border:none; background:none;
+    color: var(--ink-faint); cursor:pointer; font-size:0.9rem; display:flex; align-items:center; justify-content:center;
+  }
+  .pencil:hover{ background: var(--line-soft); }
+  .pencil.has-comment{ color: var(--amber); }
+  .vendeur-pill{ background: var(--accent-soft); color: var(--accent); font-size:0.68rem; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+  select.vendeur-select{
+    background: var(--accent-soft); color: var(--accent); border:none; font-size:0.7rem; font-weight:500;
+    padding:4px 20px 4px 9px; border-radius:20px; font-family:'Inter',sans-serif; cursor:pointer;
+    width:auto; max-width:120px; appearance:none; -webkit-appearance:none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%232f5d54'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position: right 8px center;
+  }
+  select.vendeur-select.empty{ background-color: var(--line-soft); color: var(--ink-faint); }
+  .row-actions{ display:flex; gap:2px; }
+  .row-actions button{
+    background:none; border:none; color: var(--ink-faint); cursor:pointer; font-size:0.9rem;
+    width:22px; height:22px; padding:0; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .row-actions button:hover{ background: var(--line-soft); color: var(--ink); }
+  .row-actions button.del:hover{ color: var(--danger); }
+  .cell-input.date-input{ width:98px; }
+  .statut-pill{ font-size:0.68rem; padding:2px 8px; border-radius:20px; font-weight:500; white-space:nowrap; border:none; cursor:pointer; font-family:'Inter',sans-serif; }
+  .statut-termine{ background: var(--accent-soft); color: var(--accent); }
+  .statut-encours{ background: var(--amber-soft); color: var(--amber); }
+  .statut-abandonne{ background: var(--line-soft); color: var(--ink-faint); }
+  .statut-perdu{ background: var(--danger-soft); color: var(--danger); }
+  .cost-cell{ font-weight:600; }
+  td.pastille-cell{ text-align:center; }
+  .price-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; background: var(--grey-dot); }
+  .price-dot.ok{ background: var(--accent); }
+  .price-dot.warn{ background: var(--amber); }
+  .price-dot.high{ background: var(--danger); }
+  .add-row{ padding:10px 16px; border-top:1px solid var(--line-soft); background: var(--surface); }
+  .add-row button{ font-size:0.76rem; padding:6px 12px; }
+  .cell-input{ width:62px; padding:6px 8px; }
+  .cell-input.wide{ width:150px; }
+  .cell-input.narrow{ width:40px; padding:6px 4px; text-align:center; }
+  .cell-input.vwide{ width:210px; }
+  .cell-input.vwide-comment{ width:260px; }
+  .claim-text-input{ width:150px; }
+  td.pob-cell input{ width:170px; white-space:normal; }
+  td.pob-cell{ white-space:normal; max-width:200px; }
+  .readonly-val{ color: var(--ink-soft); }
+
+  /* ===== Multiselect (filtre statut) ===== */
+  .multiselect{ position:relative; flex-shrink:0; }
+  .ms-toggle{
+    font-family:'Inter',sans-serif; font-size:0.82rem; padding:7px 26px 7px 10px; border:1px solid var(--line); border-radius:6px;
+    background: var(--surface); color: var(--ink); cursor:pointer; white-space:nowrap; position:relative;
+  }
+  .ms-toggle::after{ content:"▾"; position:absolute; right:10px; top:50%; transform:translateY(-50%); font-size:0.65rem; color: var(--ink-faint); }
+  .ms-toggle:hover{ border-color: var(--accent-soft); }
+  .ms-panel{
+    display:none; position:absolute; top:calc(100% + 4px); left:0; background:#fff; border:1px solid var(--line);
+    border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:6px; z-index:30; min-width:170px;
+  }
+  .ms-panel.open{ display:block; }
+  .ms-panel label{ display:flex; align-items:center; gap:8px; font-size:0.8rem; padding:6px 8px; border-radius:5px; cursor:pointer; white-space:nowrap; }
+  .ms-panel label:hover{ background: var(--line-soft); }
+  .ms-panel input[type=checkbox]{ width:auto; margin:0; }
+  .ms-panel .ms-clear{ font-size:0.72rem; color: var(--accent); cursor:pointer; padding:6px 8px 2px; }
+
+  /* ===== Modals ===== */
+  .modal-overlay{ display:none; position:fixed; inset:0; background:rgba(28,29,27,0.35); align-items:center; justify-content:center; z-index:50; padding:20px; }
+  .modal-overlay.open{ display:flex; }
+  .modal-box{ background: var(--surface); border-radius:12px; padding:20px 22px 22px; width:340px; max-width:100%; box-shadow:0 12px 34px rgba(0,0,0,0.18); }
+  .modal-box.wide{ width:420px; }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .modal-head span{ font-family:'Fraunces', serif; font-weight:600; font-size:1.02rem; }
+  .modal-close{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line); background:#fff; color: var(--ink-soft); text-align:center; line-height:24px; cursor:pointer; font-size:0.85rem; padding:0; flex-shrink:0; }
+  .modal-body{ display:flex; flex-direction:column; gap:10px; }
+  .modal-label{ font-size:0.7rem; text-transform:uppercase; letter-spacing:0.06em; color: var(--ink-faint); margin-bottom:-4px; }
+  .modal-label .req{ color: var(--danger); }
+  .modal-body select, .modal-body input, .modal-body textarea{ width:100%; }
+  .modal-body textarea{ font-family:'Inter',sans-serif; font-size:0.82rem; padding:8px 12px; border:1px solid var(--line); border-radius:6px; background: var(--surface); color: var(--ink); min-height:80px; resize:vertical; }
+  .modal-hint{ font-size:0.72rem; color: var(--ink-faint); margin-top:-4px; }
+  .modal-error{ font-size:0.76rem; color: var(--danger); display:none; }
+  .modal-apply{ margin-top:6px; }
+
+  /* ===== Referentiels ===== */
+  .ref-block{ margin-bottom:32px; }
+  .ref-block-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .ref-block-head h2{ font-family:'Fraunces', serif; font-weight:600; font-size:1.1rem; margin:0; }
+  .ref-table{ background: var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+
+  /* ===== Accueil ===== */
+  .home-hero{ text-align:center; padding: 10px 0 30px; }
+  .home-hero p{ color: var(--ink-soft); font-size:0.88rem; max-width:520px; margin:8px auto 0; }
+  .home-note{ text-align:center; font-size:0.78rem; color: var(--ink-faint); font-style:italic; background: var(--group-bg); border:1px dashed var(--line); border-radius:10px; padding:14px; margin-top:24px; }
+  #empty-state{ text-align:center; color: var(--ink-faint); font-size:0.85rem; padding:40px 20px; }
+
   @media (max-width:720px){
     header{ padding:20px 16px 0; }
     nav.main-nav{ padding:0 12px; justify-content:center; flex-wrap:wrap; overflow-x:visible; row-gap:2px; }
