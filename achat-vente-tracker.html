@@ -418,7 +418,7 @@
     <div id="ventes-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;"></div>
     <div class="table-scroll"><table>
       <thead><tr>
-        <th>Event ou CB</th><th>Item</th><th>Acheteur</th><th>Prix vente</th><th>Prix achat</th><th>Bénéfices</th><th>Nb PC vendus</th><th>État</th><th>Commentaire</th><th>Date</th><th></th>
+        <th>Event ou CB</th><th>Item</th><th>Acheteur</th><th>Prix vente</th><th>Prix achat</th><th>Bénéf</th><th>Nb PC</th><th>État</th><th>Commentaire</th><th>Date</th><th></th>
       </tr></thead>
       <tbody id="ventes-body"></tbody>
     </table></div>
@@ -443,6 +443,10 @@
         <h2>GOM</h2>
         <button onclick="openGomModal()">+ Ajouter</button>
       </div>
+      <div class="search-wrap" style="width:260px;max-width:100%;margin-bottom:10px;">
+        <input type="text" id="gom-search" placeholder="Chercher un vendeur...">
+        <span class="x" id="gom-search-x">×</span>
+      </div>
       <div class="table-scroll ref-table"><table>
         <thead><tr><th>Nom GOM / Seller</th><th>Lieu</th><th>Canal</th><th>Commentaire</th></tr></thead>
         <tbody id="gom-body"></tbody>
@@ -453,6 +457,10 @@
       <div class="ref-block-head">
         <h2>Events & CB</h2>
         <button onclick="openEvcbModal()">+ Ajouter</button>
+      </div>
+      <div class="search-wrap" style="width:260px;max-width:100%;margin-bottom:10px;">
+        <input type="text" id="evcb-search" placeholder="Chercher un event / CB...">
+        <span class="x" id="evcb-search-x">×</span>
       </div>
       <div class="table-scroll ref-table"><table>
         <thead><tr><th>Nom</th><th>Type</th><th>Commentaire</th></tr></thead>
@@ -525,13 +533,36 @@ const SHEETS = {
   event: { name: "ACHAT_EVENT", width: 16 }, // col P (idx15) = Frais en % d'init (calc)
   cb:    { name: "ACHAT_CB",    width: 21 }, // col U (idx20) = Frais en % d'init (calc)
   ventes:{ name: "VENTES",      width: 10 },
-  gom:   { name: "GOM",         width: 4  },
-  evcb:  { name: "EVENTS_CB",   width: 3  },
+  gom:   { name: "GOM",         width: 5  }, // col A (idx0) = ID (clé stable) ; Nom en idx1
+  evcb:  { name: "EVENTS_CB",   width: 4  }, // col A (idx0) = ID (clé stable) ; Nom en idx1
 };
 
 let DATA = { event: [], cb: [], ventes: [], gom: [], evcb: [] };
 let SHEET_IDS = {}; // sheetKey -> numeric sheetId (nécessaire pour supprimer une ligne)
 let openComment_ctx = null;
+
+// ---------- ID stable GOM / Events_CB ----------
+// ACHAT_EVENT/ACHAT_CB/VENTES référencent GOM et EVENTS_CB par cet ID (col A des deux
+// référentiels), jamais par le nom : renommer une fiche référentiel ne casse donc plus rien
+// ailleurs. L'ID est un simple entier incrémental, généré côté client.
+function nextRefId(sheetKey){
+  let max = 0;
+  DATA[sheetKey].forEach(r => {
+    const v = parseInt(cell(r,0), 10);
+    if(!isNaN(v) && v > max) max = v;
+  });
+  return String(max + 1);
+}
+function gomName(id){
+  if(!id) return '';
+  const row = DATA.gom.find(r => String(cell(r,0)) === String(id));
+  return row ? cell(row,1) : id; // repli sur l'id brut si la fiche n'existe plus
+}
+function evcbName(id){
+  if(!id) return '';
+  const row = DATA.evcb.find(r => String(cell(r,0)) === String(id));
+  return row ? cell(row,1) : id;
+}
 
 const els = {
   signin: document.getElementById('btn-signin'),
@@ -778,34 +809,30 @@ function renderAccueil(){
 
 /* ---------- Achat Event ---------- */
 function populateVendeurFilters(){
-  const names = DATA.gom.map(r => cell(r,0)).filter(Boolean).sort((a,b)=>a.localeCompare(b));
-  ['event-filter-vendeur','cb-filter-vendeur'].forEach(id => {
-    const sel = document.getElementById(id);
-    const current = sel.value;
-    sel.innerHTML = '<option value="">Tous les vendeurs</option>' + names.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('');
-    sel.value = current;
-  });
+  const pairs = DATA.gom.map(r => [cell(r,0), cell(r,1)]).filter(p => p[0])
+    .sort((a,b)=>a[1].localeCompare(b[1]));
+  ['event-filter-vendeur','cb-filter-vendeur'].forEach(id => fillSelectPreservingKV(id, 'Tous les vendeurs', pairs));
 }
 
-// Filtres "Nom d'event / de CB" : basés sur le référentiel EVENTS_CB (par Type),
-// avec repli sur les noms distincts déjà présents dans les tables si le référentiel est incomplet.
+// Filtres "Nom d'event / de CB" : basés uniquement sur le référentiel EVENTS_CB (par Type),
+// puisque ACHAT_EVENT/ACHAT_CB ne stockent plus que l'ID (toujours résolu via EVENTS_CB).
 function populateEvcbFilters(){
-  const evcbEventNames = new Set(DATA.evcb.filter(r => cell(r,1) === 'Event').map(r => cell(r,0)).filter(Boolean));
-  DATA.event.forEach(r => { if(cell(r,0)) evcbEventNames.add(cell(r,0)); });
-  const evcbCbNames = new Set(DATA.evcb.filter(r => cell(r,1) === 'CB').map(r => cell(r,0)).filter(Boolean));
-  DATA.cb.forEach(r => { if(cell(r,0)) evcbCbNames.add(cell(r,0)); });
+  const evPairs = DATA.evcb.filter(r => cell(r,2) === 'Event').map(r => [cell(r,0), cell(r,1)])
+    .sort((a,b)=>a[1].localeCompare(b[1]));
+  const cbPairs = DATA.evcb.filter(r => cell(r,2) === 'CB').map(r => [cell(r,0), cell(r,1)])
+    .sort((a,b)=>a[1].localeCompare(b[1]));
+  fillSelectPreservingKV('event-filter-event', 'Tous les events', evPairs);
+  fillSelectPreservingKV('cb-filter-cb', 'Tous les CB', cbPairs);
 
-  fillSelectPreserving('event-filter-event', 'Tous les events', Array.from(evcbEventNames).sort((a,b)=>a.localeCompare(b)));
-  fillSelectPreserving('cb-filter-cb', 'Tous les CB', Array.from(evcbCbNames).sort((a,b)=>a.localeCompare(b)));
-
-  const allNames = Array.from(new Set([...evcbEventNames, ...evcbCbNames])).sort((a,b)=>a.localeCompare(b));
-  fillSelectPreserving('ventes-filter-evcb', 'Tous les events / CB', allNames);
+  const allPairs = DATA.evcb.map(r => [cell(r,0), cell(r,1)]).sort((a,b)=>a[1].localeCompare(b[1]));
+  fillSelectPreservingKV('ventes-filter-evcb', 'Tous les events / CB', allPairs);
 }
-function fillSelectPreserving(id, placeholder, values){
+// pairs = [[id, nom], ...] — value = id, libellé affiché = nom
+function fillSelectPreservingKV(id, placeholder, pairs){
   const sel = document.getElementById(id);
   if(!sel) return;
   const current = sel.value;
-  sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('');
+  sel.innerHTML = `<option value="">${placeholder}</option>` + pairs.map(([pid,nom]) => `<option value="${escapeAttr(pid)}">${escapeHtml(nom)}</option>`).join('');
   sel.value = current;
 }
 
@@ -865,7 +892,7 @@ function renderEvent(){
   const vFilter = document.getElementById('event-filter-vendeur').value;
 
   let rows = DATA.event.filter(r => {
-    if(q && !(cell(r,1).toLowerCase().includes(q) || cell(r,0).toLowerCase().includes(q))) return false;
+    if(q && !(cell(r,1).toLowerCase().includes(q) || evcbName(cell(r,0)).toLowerCase().includes(q))) return false;
     if(stFilter.length && !stFilter.includes(cell(r,3))) return false;
     if(evFilter && cell(r,0) !== evFilter) return false;
     if(vFilter && cell(r,2) !== vFilter) return false;
@@ -888,11 +915,11 @@ function renderEvent(){
     <div class="kpi-card"><div class="label">Coût moyen / PC</div><div class="value">${coutParPC ? coutParPC.toFixed(2)+' €' : '—'}</div></div>
   `;
 
-  // Groupes par Event
+  // Groupes par Event (clé = ID, libellé affiché = nom résolu)
   const groups = {};
   const order = [];
   rows.forEach(r => {
-    const g = cell(r,0) || '(sans event)';
+    const g = cell(r,0) || '';
     if(!groups[g]){ groups[g] = []; order.push(g); }
     groups[g].push(r);
   });
@@ -902,13 +929,14 @@ function renderEvent(){
 
   wrap.innerHTML = order.map(g => {
     const grows = groups[g];
+    const label = g ? evcbName(g) : '(sans event)';
     const gTotal = grows.reduce((s,r)=>s+eventRowTotal(r),0);
     const gPC = grows.reduce((s,r)=>s+num(r,10),0);
     return `
     <div class="group" data-group="${escapeAttr(g)}">
       <div class="group-head">
         <div class="collapse-btn" onclick="this.closest('.group').classList.toggle('collapsed')">▾</div>
-        <div class="title">${escapeHtml(g)}</div>
+        <div class="title">${escapeHtml(label)}</div>
         <div class="sub-kpis"><span>${grows.length} claims · <b>${fmtEuro(gTotal)}</b> · ${gPC} PC</span></div>
       </div>
       <div class="table-scroll"><table>
@@ -918,7 +946,7 @@ function renderEvent(){
         </tr></thead>
         <tbody>${grows.map(r => eventRowHtml(r)).join('')}</tbody>
       </table></div>
-      <div class="add-row"><button class="secondary" onclick="addEventClaim(${JSON.stringify(g).replace(/"/g,'&quot;')})">+ Ajouter un claim</button></div>
+      <div class="add-row"><button class="secondary" onclick="addEventClaim('${escapeAttr(g)}')">+ Ajouter un claim</button></div>
     </div>`;
   }).join('');
 }
@@ -959,7 +987,7 @@ function renderCB(){
   const vFilter = document.getElementById('cb-filter-vendeur').value;
 
   let rows = DATA.cb.filter(r => {
-    if(q && !(cell(r,2).toLowerCase().includes(q) || cell(r,0).toLowerCase().includes(q))) return false;
+    if(q && !(cell(r,2).toLowerCase().includes(q) || evcbName(cell(r,0)).toLowerCase().includes(q))) return false;
     if(stFilter.length && !stFilter.includes(cell(r,16))) return false;
     if(cbNameFilter && cell(r,0) !== cbNameFilter) return false;
     if(vFilter && cell(r,1) !== vFilter) return false;
@@ -998,7 +1026,7 @@ function renderCB(){
   const groups = {};
   const order = [];
   rows.forEach(r => {
-    const g = cell(r,0) || '(sans CB)';
+    const g = cell(r,0) || '';
     if(!groups[g]){ groups[g] = []; order.push(g); }
     groups[g].push(r);
   });
@@ -1008,6 +1036,7 @@ function renderCB(){
 
   wrap.innerHTML = order.map(g => {
     const grows = groups[g];
+    const label = g ? evcbName(g) : '(sans CB)';
     const gAlbums = grows.reduce((s,r)=>s+num(r,4),0);
     const gInit = grows.reduce((s,r)=>s+num(r,9),0);
     const gEms = grows.reduce((s,r)=>s+num(r,11),0);
@@ -1017,7 +1046,7 @@ function renderCB(){
     <div class="group" data-group="${escapeAttr(g)}">
       <div class="group-head">
         <div class="collapse-btn" onclick="this.closest('.group').classList.toggle('collapsed')">▾</div>
-        <div class="title">${escapeHtml(g)}</div>
+        <div class="title">${escapeHtml(label)}</div>
         <div class="sub-kpis">
           <span>${gAlbums} albums · <b>${fmtEuro(gInit)}</b> init</span>
           <span>EMS <b>${fmtEuro(gEms)}</b></span>
@@ -1033,7 +1062,7 @@ function renderCB(){
         </tr></thead>
         <tbody>${grows.map(r => cbRowHtml(r)).join('')}</tbody>
       </table></div>
-      <div class="add-row"><button class="secondary" onclick="addCbClaim(${JSON.stringify(g).replace(/"/g,'&quot;')})">+ Ajouter un claim</button></div>
+      <div class="add-row"><button class="secondary" onclick="addCbClaim('${escapeAttr(g)}')">+ Ajouter un claim</button></div>
     </div>`;
   }).join('');
 }
@@ -1071,7 +1100,7 @@ function renderVentes(){
   let rows = DATA.ventes.filter(r => {
     if(evcbFilter && cell(r,0) !== evcbFilter) return false;
     if(!q) return true;
-    return cell(r,0).toLowerCase().includes(q) || cell(r,1).toLowerCase().includes(q) || cell(r,2).toLowerCase().includes(q);
+    return evcbName(cell(r,0)).toLowerCase().includes(q) || cell(r,1).toLowerCase().includes(q) || cell(r,2).toLowerCase().includes(q);
   });
 
   const nbVentes = rows.length;
@@ -1096,8 +1125,8 @@ function renderVentes(){
       <td class="mfield" data-mlabel="Acheteur"><input type="text" class="cell-input vwide" value="${escapeAttr(cell(r,2))}" onblur="saveCell('ventes', ${r.rowIndex}, 2, this.value)"></td>
       <td class="mfield mfield-left" data-mlabel="Prix vente"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,3))}" onblur="saveCell('ventes', ${r.rowIndex}, 3, this.value); renderVentes();"></td>
       <td class="mfield" data-mlabel="Prix achat"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,4))}" onblur="saveCell('ventes', ${r.rowIndex}, 4, this.value); renderVentes();"></td>
-      <td class="cost-cell readonly-val mfield mfield-left" data-mlabel="Bénéfices">${fmtEuro(benef)}</td>
-      <td class="mfield" data-mlabel="Nb PC vendus"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('ventes', ${r.rowIndex}, 6, this.value)"></td>
+      <td class="cost-cell readonly-val mfield mfield-left" data-mlabel="Bénéf">${fmtEuro(benef)}</td>
+      <td class="mfield" data-mlabel="Nb PC"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('ventes', ${r.rowIndex}, 6, this.value)"></td>
       <td class="mfield mfield-left" data-mlabel="État">${statutSelectHtml('ventes', r.rowIndex, 7, cell(r,7))}</td>
       <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input vwide-comment" value="${escapeAttr(cell(r,8))}" onblur="saveCell('ventes', ${r.rowIndex}, 8, this.value)"></td>
       <td class="mfield mfield-left" data-mlabel="Date"><input type="text" class="cell-input date-input" placeholder="AAAA-MM-JJ" value="${escapeAttr(cell(r,9))}" onblur="saveCell('ventes', ${r.rowIndex}, 9, this.value)"></td>
@@ -1110,22 +1139,42 @@ function renderVentes(){
 }
 
 /* ---------- Referentiels ---------- */
+let gomSearchQ = '';
+let evcbSearchQ = '';
 function renderReferentiels(){
-  document.getElementById('gom-body').innerHTML = DATA.gom.map(r => `
+  const gomRows = DATA.gom.filter(r => !gomSearchQ || cell(r,1).toLowerCase().includes(gomSearchQ));
+  document.getElementById('gom-body').innerHTML = gomRows.map(r => `
     <tr data-row="${r.rowIndex}">
-      <td class="mtitle" data-mlabel="Nom GOM / Seller"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,0))}" onblur="saveCell('gom', ${r.rowIndex}, 0, this.value)"></td>
-      <td class="mfield mfield-left" data-mlabel="Lieu"><input type="text" class="cell-input" value="${escapeAttr(cell(r,1))}" onblur="saveCell('gom', ${r.rowIndex}, 1, this.value)"></td>
-      <td class="mfield" data-mlabel="Canal">${canalSelectHtml('gom', r.rowIndex, 2, cell(r,2))}</td>
-      <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,3))}" onblur="saveCell('gom', ${r.rowIndex}, 3, this.value)"></td>
-    </tr>`).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--ink-faint);">Aucun GOM pour l'instant.</td></tr>`;
+      <td class="mtitle" data-mlabel="Nom GOM / Seller"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,1))}" onblur="saveCell('gom', ${r.rowIndex}, 1, this.value)"></td>
+      <td class="mfield mfield-left" data-mlabel="Lieu"><input type="text" class="cell-input" value="${escapeAttr(cell(r,2))}" onblur="saveCell('gom', ${r.rowIndex}, 2, this.value)"></td>
+      <td class="mfield" data-mlabel="Canal">${canalSelectHtml('gom', r.rowIndex, 3, cell(r,3))}</td>
+      <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,4))}" onblur="saveCell('gom', ${r.rowIndex}, 4, this.value)"></td>
+    </tr>`).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--ink-faint);">${gomSearchQ ? 'Aucun résultat.' : "Aucun GOM pour l'instant."}</td></tr>`;
 
-  document.getElementById('evcb-body').innerHTML = DATA.evcb.map(r => `
+  const evcbRows = DATA.evcb.filter(r => !evcbSearchQ || cell(r,1).toLowerCase().includes(evcbSearchQ));
+  document.getElementById('evcb-body').innerHTML = evcbRows.map(r => `
     <tr data-row="${r.rowIndex}">
-      <td class="mtitle" data-mlabel="Nom"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,0))}" onblur="saveCell('evcb', ${r.rowIndex}, 0, this.value)"></td>
-      <td class="mfield mfield-full" data-mlabel="Type">${typeSelectHtml('evcb', r.rowIndex, 1, cell(r,1))}</td>
-      <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,2))}" onblur="saveCell('evcb', ${r.rowIndex}, 2, this.value)"></td>
-    </tr>`).join('') || `<tr><td colspan="3" style="text-align:center;color:var(--ink-faint);">Aucun event/CB pour l'instant.</td></tr>`;
+      <td class="mtitle" data-mlabel="Nom"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,1))}" onblur="saveCell('evcb', ${r.rowIndex}, 1, this.value)"></td>
+      <td class="mfield mfield-full" data-mlabel="Type">${typeSelectHtml('evcb', r.rowIndex, 2, cell(r,2))}</td>
+      <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,3))}" onblur="saveCell('evcb', ${r.rowIndex}, 3, this.value)"></td>
+    </tr>`).join('') || `<tr><td colspan="3" style="text-align:center;color:var(--ink-faint);">${evcbSearchQ ? 'Aucun résultat.' : "Aucun event/CB pour l'instant."}</td></tr>`;
 }
+document.getElementById('gom-search').addEventListener('input', function(){
+  gomSearchQ = this.value.trim().toLowerCase();
+  document.getElementById('gom-search-x').classList.toggle('show', this.value.length>0);
+  renderReferentiels();
+});
+document.getElementById('gom-search-x').addEventListener('click', function(){
+  const i = document.getElementById('gom-search'); i.value=''; gomSearchQ=''; this.classList.remove('show'); renderReferentiels();
+});
+document.getElementById('evcb-search').addEventListener('input', function(){
+  evcbSearchQ = this.value.trim().toLowerCase();
+  document.getElementById('evcb-search-x').classList.toggle('show', this.value.length>0);
+  renderReferentiels();
+});
+document.getElementById('evcb-search-x').addEventListener('click', function(){
+  const i = document.getElementById('evcb-search'); i.value=''; evcbSearchQ=''; this.classList.remove('show'); renderReferentiels();
+});
 
 /* ===================== WIDGETS RÉUTILISABLES ===================== */
 function statutSelectHtml(sheetKey, rowIndex, colIdx, current){
@@ -1152,13 +1201,13 @@ function typeSelectHtml(sheetKey, rowIndex, colIdx, current){
   </select>`;
 }
 
-function vendeurSelectHtml(sheetKey, rowIndex, colIdx, current){
-  const names = DATA.gom.map(r => cell(r,0)).filter(Boolean).sort((a,b)=>a.localeCompare(b));
-  const known = !current || names.some(n => n.toLowerCase() === current.toLowerCase());
-  const opts = names.map(n => `<option value="${escapeAttr(n)}" ${n===current?'selected':''}>${escapeHtml(n)}</option>`).join('');
-  return `<select class="vendeur-select ${current?'':'empty'}" onchange="handleVendeurSelectChange(this, '${sheetKey}', ${rowIndex}, ${colIdx})">
-    <option value="" ${!current?'selected':''}>—</option>
-    ${!known ? `<option value="${escapeAttr(current)}" selected>${escapeHtml(current)}</option>` : ''}
+function vendeurSelectHtml(sheetKey, rowIndex, colIdx, currentId){
+  const pairs = DATA.gom.map(r => [cell(r,0), cell(r,1)]).filter(p=>p[0]).sort((a,b)=>a[1].localeCompare(b[1]));
+  const known = !currentId || pairs.some(([id]) => String(id) === String(currentId));
+  const opts = pairs.map(([id,nom]) => `<option value="${escapeAttr(id)}" ${String(id)===String(currentId)?'selected':''}>${escapeHtml(nom)}</option>`).join('');
+  return `<select class="vendeur-select ${currentId?'':'empty'}" onchange="handleVendeurSelectChange(this, '${sheetKey}', ${rowIndex}, ${colIdx})">
+    <option value="" ${!currentId?'selected':''}>—</option>
+    ${!known ? `<option value="${escapeAttr(currentId)}" selected>${escapeHtml(gomName(currentId))} (?)</option>` : ''}
     ${opts}
     <option value="__new__">+ Nouveau vendeur…</option>
   </select>`;
@@ -1179,13 +1228,13 @@ function handleVendeurSelectChange(select, sheetKey, rowIndex, colIdx){
   saveCell(sheetKey, rowIndex, colIdx, val);
   select.classList.toggle('empty', !val);
 }
-function evcbSelectHtml(sheetKey, rowIndex, colIdx, current){
-  const names = DATA.evcb.map(r => cell(r,0)).filter(Boolean).sort((a,b)=>a.localeCompare(b));
-  const known = !current || names.some(n => n.toLowerCase() === current.toLowerCase());
-  const opts = names.map(n => `<option value="${escapeAttr(n)}" ${n===current?'selected':''}>${escapeHtml(n)}</option>`).join('');
-  return `<select class="vendeur-select ${current?'':'empty'}" onchange="handleEvcbSelectChange(this, '${sheetKey}', ${rowIndex}, ${colIdx})">
-    <option value="" ${!current?'selected':''}>—</option>
-    ${!known ? `<option value="${escapeAttr(current)}" selected>${escapeHtml(current)}</option>` : ''}
+function evcbSelectHtml(sheetKey, rowIndex, colIdx, currentId){
+  const pairs = DATA.evcb.map(r => [cell(r,0), cell(r,1)]).filter(p=>p[0]).sort((a,b)=>a[1].localeCompare(b[1]));
+  const known = !currentId || pairs.some(([id]) => String(id) === String(currentId));
+  const opts = pairs.map(([id,nom]) => `<option value="${escapeAttr(id)}" ${String(id)===String(currentId)?'selected':''}>${escapeHtml(nom)}</option>`).join('');
+  return `<select class="vendeur-select ${currentId?'':'empty'}" onchange="handleEvcbSelectChange(this, '${sheetKey}', ${rowIndex}, ${colIdx})">
+    <option value="" ${!currentId?'selected':''}>—</option>
+    ${!known ? `<option value="${escapeAttr(currentId)}" selected>${escapeHtml(evcbName(currentId))} (?)</option>` : ''}
     ${opts}
     <option value="__new__">+ Nouveau…</option>
   </select>`;
@@ -1210,25 +1259,13 @@ function handleEvcbSelectChange(select, sheetKey, rowIndex, colIdx){
 function ensureDatalists(){
   let dl = document.getElementById('gom-datalist');
   if(!dl){ dl = document.createElement('datalist'); dl.id='gom-datalist'; document.body.appendChild(dl); }
-  dl.innerHTML = DATA.gom.map(r => `<option value="${escapeAttr(cell(r,0))}">`).join('');
+  dl.innerHTML = DATA.gom.map(r => `<option value="${escapeAttr(cell(r,1))}">`).join('');
   let dl2 = document.getElementById('evcb-datalist');
   if(!dl2){ dl2 = document.createElement('datalist'); dl2.id='evcb-datalist'; document.body.appendChild(dl2); }
-  dl2.innerHTML = DATA.evcb.map(r => `<option value="${escapeAttr(cell(r,0))}">`).join('');
+  dl2.innerHTML = DATA.evcb.map(r => `<option value="${escapeAttr(cell(r,1))}">`).join('');
 }
 
 let pendingVendeurCtx = null;
-function handleVendeurBlur(input, sheetKey, rowIndex, colIdx){
-  const val = input.value.trim();
-  const known = DATA.gom.some(r => cell(r,0).toLowerCase() === val.toLowerCase());
-  if(!val || known){ saveCell(sheetKey, rowIndex, colIdx, val); return; }
-  pendingVendeurCtx = { sheetKey, rowIndex, colIdx };
-  document.getElementById('gom-nom').value = val;
-  document.getElementById('gom-lieu').value = '';
-  document.getElementById('gom-canal').value = '';
-  document.getElementById('gom-commentaire').value = '';
-  document.getElementById('gom-error').style.display = 'none';
-  openModal('modal-gom');
-}
 
 let pendingEvcbCtx = null;
 
@@ -1260,12 +1297,13 @@ async function submitGomModal(){
   const errEl = document.getElementById('gom-error');
   if(!nom || !lieu || !canal){ errEl.textContent = 'Nom, Lieu et Canal sont obligatoires.'; errEl.style.display='block'; return; }
   try{
-    await appendRow('gom', [nom, lieu, canal, commentaire]);
+    const newId = nextRefId('gom');
+    await appendRow('gom', [newId, nom, lieu, canal, commentaire]);
     closeModal('modal-gom');
     await loadAll();
     if(pendingVendeurCtx){
       const ctx = pendingVendeurCtx; pendingVendeurCtx = null;
-      await saveCell(ctx.sheetKey, ctx.rowIndex, ctx.colIdx, nom);
+      await saveCell(ctx.sheetKey, ctx.rowIndex, ctx.colIdx, newId);
       renderAll();
     }
     showSaved('✓ GOM ajouté');
@@ -1287,12 +1325,13 @@ async function submitEvcbModal(){
   const errEl = document.getElementById('evcb-error');
   if(!nom || !type){ errEl.textContent = 'Nom et Type sont obligatoires.'; errEl.style.display='block'; return; }
   try{
-    await appendRow('evcb', [nom, type, commentaire]);
+    const newId = nextRefId('evcb');
+    await appendRow('evcb', [newId, nom, type, commentaire]);
     closeModal('modal-evcb');
     await loadAll();
     if(pendingEvcbCtx){
       const ctx = pendingEvcbCtx; pendingEvcbCtx = null;
-      await saveCell(ctx.sheetKey, ctx.rowIndex, ctx.colIdx, nom);
+      await saveCell(ctx.sheetKey, ctx.rowIndex, ctx.colIdx, newId);
       renderAll();
     }
     showSaved('✓ Ajouté au référentiel');
@@ -1317,31 +1356,39 @@ async function submitComment(){
 }
 
 /* ===================== AJOUT DE LIGNES ===================== */
-async function addEventClaim(eventName){
+async function addEventClaim(eventId){
   const row = new Array(SHEETS.event.width).fill("");
-  row[0] = eventName; row[3] = "En cours"; row[5] = "Non";
+  row[0] = eventId; row[3] = "En cours"; row[5] = "Non";
   await appendRow('event', row);
   await loadAll();
 }
-async function addCbClaim(cbName){
+async function addCbClaim(cbId){
   const row = new Array(SHEETS.cb.width).fill("");
-  row[0] = cbName; row[10] = "Non"; row[16] = "En cours";
+  row[0] = cbId; row[10] = "Non"; row[16] = "En cours";
   await appendRow('cb', row);
   await loadAll();
 }
 document.getElementById('event-add-group').addEventListener('click', async () => {
   const name = prompt("Nom du nouvel event :");
   if(!name || !name.trim()) return;
-  const known = DATA.evcb.some(r => cell(r,0).toLowerCase() === name.trim().toLowerCase());
-  if(!known) await appendRow('evcb', [name.trim(), 'Event', '']);
-  await addEventClaim(name.trim());
+  const existing = DATA.evcb.find(r => cell(r,1).toLowerCase() === name.trim().toLowerCase());
+  let id = existing ? cell(existing,0) : null;
+  if(!id){
+    id = nextRefId('evcb');
+    await appendRow('evcb', [id, name.trim(), 'Event', '']);
+  }
+  await addEventClaim(id);
 });
 document.getElementById('cb-add-group').addEventListener('click', async () => {
   const name = prompt("Nom du nouveau CB :");
   if(!name || !name.trim()) return;
-  const known = DATA.evcb.some(r => cell(r,0).toLowerCase() === name.trim().toLowerCase());
-  if(!known) await appendRow('evcb', [name.trim(), 'CB', '']);
-  await addCbClaim(name.trim());
+  const existing = DATA.evcb.find(r => cell(r,1).toLowerCase() === name.trim().toLowerCase());
+  let id = existing ? cell(existing,0) : null;
+  if(!id){
+    id = nextRefId('evcb');
+    await appendRow('evcb', [id, name.trim(), 'CB', '']);
+  }
+  await addCbClaim(id);
 });
 document.getElementById('ventes-add').addEventListener('click', async () => {
   const row = new Array(SHEETS.ventes.width).fill("");
@@ -1424,38 +1471,48 @@ function pick(csvRow, ...names){
 
 // Collecte les référentiels manquants (GOM et/ou Events_CB) détectés dans un lot CSV,
 // sans écrire immédiatement — dédoublonne contre l'existant ET contre les doublons internes
-// au même fichier CSV. L'écriture se fait ensuite en un seul appendRowsBatch par onglet.
+// au même fichier CSV. Attribue un ID à chaque nouvelle fiche et renvoie, en plus des lignes
+// à ajouter, une map nom(minuscule)->id couvrant existant + nouveau, pour résoudre les FK.
 function collectMissingReferentiels(csvRows, opts){
   const { evcbNomFn, evcbType, gomNomFn } = opts;
-  const knownEvcb = new Set(DATA.evcb.map(r => cell(r,0).toLowerCase()));
-  const knownGom = new Set(DATA.gom.map(r => cell(r,0).toLowerCase()));
-  const seenEvcb = new Set(), seenGom = new Set();
+  const evcbIdByName = new Map(DATA.evcb.map(r => [cell(r,1).toLowerCase(), cell(r,0)]));
+  const gomIdByName = new Map(DATA.gom.map(r => [cell(r,1).toLowerCase(), cell(r,0)]));
   const newEvcb = [], newGom = [];
+  let nextEvcbId = parseInt(nextRefId('evcb'), 10);
+  let nextGomId = parseInt(nextRefId('gom'), 10);
 
   csvRows.forEach(c => {
     if(evcbNomFn){
       const nom = evcbNomFn(c);
       if(nom){
         const key = nom.toLowerCase();
-        if(!knownEvcb.has(key) && !seenEvcb.has(key)){ newEvcb.push([nom, evcbType, ""]); seenEvcb.add(key); }
+        if(!evcbIdByName.has(key)){
+          const id = String(nextEvcbId++);
+          newEvcb.push([id, nom, evcbType, ""]);
+          evcbIdByName.set(key, id);
+        }
       }
     }
     if(gomNomFn){
       const nom = gomNomFn(c);
       if(nom){
         const key = nom.toLowerCase();
-        if(!knownGom.has(key) && !seenGom.has(key)){ newGom.push([nom, "", "", "(créé par import CSV — à qualifier)"]); seenGom.add(key); }
+        if(!gomIdByName.has(key)){
+          const id = String(nextGomId++);
+          newGom.push([id, nom, "", "", "(créé par import CSV — à qualifier)"]);
+          gomIdByName.set(key, id);
+        }
       }
     }
   });
-  return { newEvcb, newGom };
+  return { newEvcb, newGom, evcbIdByName, gomIdByName };
 }
 
 // BUY (Excel) -> ACHAT_EVENT
 async function importEventCSV(csvRows, resultEl){
   resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
 
-  const { newEvcb, newGom } = collectMissingReferentiels(csvRows, {
+  const { newEvcb, newGom, evcbIdByName, gomIdByName } = collectMissingReferentiels(csvRows, {
     evcbNomFn: c => pick(c, "Event / Nom ...", "Event", "event"),
     evcbType: 'Event',
     gomNomFn: c => pick(c, "Nom GOM/Seller", "Vendeur", "vendeur"),
@@ -1466,10 +1523,11 @@ async function importEventCSV(csvRows, resultEl){
   const rowsToAdd = csvRows.map(c => {
     const eventNom = pick(c, "Event / Nom ...", "Event", "event");
     if(!eventNom) return null;
+    const vendeurNom = pick(c, "Nom GOM/Seller", "Vendeur", "vendeur");
     return [
-      eventNom,
+      evcbIdByName.get(eventNom.toLowerCase()) || "",
       pick(c, "Claim", "claim"),
-      pick(c, "Nom GOM/Seller", "Vendeur", "vendeur"),
+      vendeurNom ? (gomIdByName.get(vendeurNom.toLowerCase()) || "") : "",
       pick(c, "Statut", "statut") || "Terminé",
       pick(c, "Coût initial", "Init", "init"),
       "Oui",
@@ -1497,7 +1555,7 @@ async function importEventCSV(csvRows, resultEl){
 async function importCbCSV(csvRows, resultEl, cbNomDefault){
   resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
 
-  const { newEvcb, newGom } = collectMissingReferentiels(csvRows, {
+  const { newEvcb, newGom, evcbIdByName, gomIdByName } = collectMissingReferentiels(csvRows, {
     evcbNomFn: c => pick(c, "CB", "cb") || cbNomDefault,
     evcbType: 'CB',
     gomNomFn: c => pick(c, "GOM", "Vendeur", "vendeur"),
@@ -1508,8 +1566,10 @@ async function importCbCSV(csvRows, resultEl, cbNomDefault){
   const rowsToAdd = csvRows.map(c => {
     const cbNom = pick(c, "CB", "cb") || cbNomDefault;
     if(!cbNom) return null;
+    const vendeurNom = pick(c, "GOM", "Vendeur", "vendeur");
     return [
-      cbNom, pick(c, "GOM", "Vendeur", "vendeur"),
+      evcbIdByName.get(cbNom.toLowerCase()) || "",
+      vendeurNom ? (gomIdByName.get(vendeurNom.toLowerCase()) || "") : "",
       pick(c, "Store", "store"),
       pick(c, "Album", "album"),
       pick(c, "Nb albums", "nb_albums"),
@@ -1543,7 +1603,7 @@ async function importCbCSV(csvRows, resultEl, cbNomDefault){
 async function importVentesCSV(csvRows, resultEl){
   resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
 
-  const { newEvcb } = collectMissingReferentiels(csvRows, {
+  const { newEvcb, evcbIdByName } = collectMissingReferentiels(csvRows, {
     evcbNomFn: c => pick(c, "Event / Nom ...", "Event ou CB", "event"),
     evcbType: 'Event',
   });
@@ -1552,7 +1612,7 @@ async function importVentesCSV(csvRows, resultEl){
   const rowsToAdd = csvRows.map(c => {
     const eventOuCb = pick(c, "Event / Nom ...", "Event ou CB", "event");
     return [
-      eventOuCb,
+      eventOuCb ? (evcbIdByName.get(eventOuCb.toLowerCase()) || "") : "",
       pick(c, "Item", "item"),
       pick(c, "Nom acheteur", "Acheteur", "acheteur"),
       pick(c, "Prix vente", "prix_vente"),
@@ -1576,7 +1636,8 @@ async function importVentesCSV(csvRows, resultEl){
 // Import référentiel direct (GOM ou Events_CB)
 async function importRefCSV(sheetKey, csvRows, resultEl){
   resultEl.textContent = `Analyse de ${csvRows.length} ligne(s)...`;
-  const existing = new Set(DATA[sheetKey].map(r => cell(r,0).toLowerCase()));
+  const existing = new Set(DATA[sheetKey].map(r => cell(r,1).toLowerCase()));
+  let nextId = parseInt(nextRefId(sheetKey), 10);
   const rowsToAdd = [];
   let skipped = 0;
   for(const c of csvRows){
@@ -1584,11 +1645,11 @@ async function importRefCSV(sheetKey, csvRows, resultEl){
     if(sheetKey === 'gom'){
       nom = pick(c, "Nom GOM/Seller", "Nom GOM / Seller", "Nom", "nom");
       if(!nom || existing.has(nom.toLowerCase())){ skipped++; continue; }
-      row = [nom, pick(c,"Lieu","lieu"), pick(c,"Canal","canal"), pick(c,"Commentaire","commentaire")];
+      row = [String(nextId++), nom, pick(c,"Lieu","lieu"), pick(c,"Canal","canal"), pick(c,"Commentaire","commentaire")];
     } else {
       nom = pick(c, "Nom", "nom");
       if(!nom || existing.has(nom.toLowerCase())){ skipped++; continue; }
-      row = [nom, pick(c,"Type","type") || "Event", pick(c,"Commentaire","commentaire")];
+      row = [String(nextId++), nom, pick(c,"Type","type") || "Event", pick(c,"Commentaire","commentaire")];
     }
     existing.add(nom.toLowerCase());
     rowsToAdd.push(row);
