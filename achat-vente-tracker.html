@@ -171,7 +171,7 @@
   }
   .row-actions button:hover{ background: var(--line-soft); color: var(--ink); }
   .row-actions button.del:hover{ color: var(--danger); }
-  .cell-input.date-input{ width:98px; }
+  .cell-input.date-input{ width:118px; padding-left:6px; padding-right:6px; font-variant-numeric:tabular-nums; }
   .statut-pill{ font-size:0.68rem; padding:2px 8px; border-radius:20px; font-weight:500; white-space:nowrap; border:none; cursor:pointer; font-family:'Inter',sans-serif; }
   .statut-termine{ background: var(--accent-soft); color: var(--accent); }
   .statut-encours{ background: var(--amber-soft); color: var(--amber); }
@@ -189,6 +189,7 @@
   .cell-input.wide{ width:150px; }
   .cell-input.narrow{ width:40px; padding:6px 4px; text-align:center; }
   .cell-input.vwide{ width:210px; }
+  .cell-input.vwide-acheteur{ width:110px; }
   .cell-input.vwide-comment{ width:260px; }
   .claim-text-input{ width:150px; }
   td.pob-cell input{ width:170px; white-space:normal; }
@@ -251,6 +252,9 @@
       background: var(--surface);
       box-shadow: -6px 0 6px -6px rgba(28,29,27,0.12);
       z-index: 2;
+      width: 65px;
+      min-width: 65px;
+      justify-content: center;
     }
   }
 
@@ -285,13 +289,18 @@
     tbody tr::after{ content:""; display:table; clear:both; }
     .add-row{ background:transparent; border-top:none; padding:4px 2px 0; }
 
-    /* icône commentaire / actions -> coin haut droit de la carte */
+    /* icône commentaire -> coin haut droit de la carte (event/cb) ; icône actions -> coin haut droit (ventes) */
     #page-event tbody tr td.claim-icon,
     #page-cb tbody tr td.claim-icon,
     #page-ventes tbody tr td.row-actions{
       position:absolute; top:12px; right:10px; width:auto!important; padding:0;
     }
     #page-ventes tbody tr td.row-actions{ display:flex; gap:2px; }
+    /* Ventes a EN PLUS le crayon commentaire : coin haut gauche pour ne pas chevaucher dupliquer/supprimer */
+    #page-ventes tbody tr td.claim-icon{
+      position:absolute; top:12px; left:10px; width:auto!important; padding:0;
+    }
+    #page-ventes tbody tr{ padding-left:38px; }
 
     /* labels au-dessus de chaque champ */
     tbody tr td[data-mlabel]::before{
@@ -418,7 +427,7 @@
     <div id="ventes-import-result" style="font-size:0.76rem;color:var(--ink-soft);margin:-10px 0 12px;"></div>
     <div class="table-scroll"><table>
       <thead><tr>
-        <th>Event ou CB</th><th>Item</th><th>Acheteur</th><th>Prix vente</th><th>Prix achat</th><th>Bénéf</th><th>Nb PC</th><th>État</th><th>Commentaire</th><th>Date</th><th></th>
+        <th></th><th>Event ou CB</th><th>Item</th><th>Acheteur</th><th>Prix vente</th><th>Prix achat</th><th>Bénéf</th><th>Nb PC</th><th>État</th><th>Date</th><th></th>
       </tr></thead>
       <tbody id="ventes-body"></tbody>
     </table></div>
@@ -1118,8 +1127,10 @@ function renderVentes(){
   document.getElementById('ventes-empty').style.display = rows.length ? 'none' : 'block';
   body.innerHTML = rows.map(r => {
     const benef = num(r,3) - num(r,4);
+    const comment = cell(r,8);
     return `
     <tr data-row="${r.rowIndex}">
+      <td class="claim-icon"><button class="pencil ${comment?'has-comment':''}" title="Commentaire" onclick="openCommentModal('ventes', ${r.rowIndex}, ${JSON.stringify(cell(r,1)||'cette vente').replace(/"/g,'&quot;')})">✎</button></td>
       <td class="mtitle mpill">${evcbSelectHtml('ventes', r.rowIndex, 0, cell(r,0))}</td>
       <td class="mfield mfield-left" data-mlabel="Item"><input type="text" class="cell-input vwide" value="${escapeAttr(cell(r,1))}" onblur="saveCell('ventes', ${r.rowIndex}, 1, this.value)"></td>
       <td class="mfield" data-mlabel="Acheteur"><input type="text" class="cell-input vwide" value="${escapeAttr(cell(r,2))}" onblur="saveCell('ventes', ${r.rowIndex}, 2, this.value)"></td>
@@ -1128,7 +1139,6 @@ function renderVentes(){
       <td class="cost-cell readonly-val mfield mfield-left" data-mlabel="Bénéf">${fmtEuro(benef)}</td>
       <td class="mfield" data-mlabel="Nb PC"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,6))}" onblur="saveCell('ventes', ${r.rowIndex}, 6, this.value)"></td>
       <td class="mfield mfield-left" data-mlabel="État">${statutSelectHtml('ventes', r.rowIndex, 7, cell(r,7))}</td>
-      <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input vwide-comment" value="${escapeAttr(cell(r,8))}" onblur="saveCell('ventes', ${r.rowIndex}, 8, this.value)"></td>
       <td class="mfield mfield-left" data-mlabel="Date"><input type="text" class="cell-input date-input" placeholder="AAAA-MM-JJ" value="${escapeAttr(cell(r,9))}" onblur="saveCell('ventes', ${r.rowIndex}, 9, this.value)"></td>
       <td class="row-actions">
         <button type="button" title="Dupliquer (date du jour)" onclick="duplicateVenteRow(${r.rowIndex})">⧉</button>
@@ -1339,7 +1349,7 @@ async function submitEvcbModal(){
 }
 
 function openCommentModal(sheetKey, rowIndex, label){
-  const colIdx = sheetKey === 'event' ? 12 : 17;
+  const colIdx = { event: 12, cb: 17, ventes: 8 }[sheetKey];
   const row = DATA[sheetKey].find(r => r.rowIndex === rowIndex);
   openComment_ctx = { sheetKey, rowIndex, colIdx };
   document.getElementById('comment-title').textContent = 'Commentaire — ' + label;
