@@ -141,6 +141,12 @@
   /* ===== Table ===== */
   .table-scroll{ overflow-x:auto; background: var(--surface); }
   table{ width:100%; border-collapse:collapse; }
+  table.event-table{ table-layout:fixed; }
+  table.event-table thead th{ position:relative; overflow:hidden; text-overflow:ellipsis; }
+  .col-resizer{
+    position:absolute; top:0; right:-3px; width:6px; height:100%; cursor:col-resize; z-index:3;
+  }
+  .col-resizer:hover, .col-resizer.active{ background: var(--accent-soft); }
   thead th{
     text-align:left; font-size:0.6rem; text-transform:uppercase; letter-spacing:0.03em; color: var(--ink-faint);
     font-weight:600; padding:7px 6px; border-bottom:1px solid var(--line); white-space:nowrap;
@@ -345,7 +351,10 @@
 </div>
 
 <header id="app-header" style="display:none;">
-  <h1>Suivi Achats & Ventes</h1>
+  <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
+    <h1>Suivi Achats & Ventes</h1>
+    <button type="button" class="icon-btn" id="btn-refresh" title="Rafraîchir les données" style="width:32px;height:32px;font-size:1rem;">↻</button>
+  </div>
   <nav class="main-nav">
     <div class="nav-item active" data-page="accueil">Accueil</div>
     <div class="nav-item" data-page="event">Achat / Event</div>
@@ -386,7 +395,6 @@
 
   <!-- ===================== ACHAT CB ===================== -->
   <div class="page" id="page-cb">
-    <div class="kpi-band" id="cb-kpi"></div>
     <div class="toolbar">
       <div class="search-wrap">
         <input type="text" id="cb-search" placeholder="Comeback, store...">
@@ -619,6 +627,18 @@ function onSignedIn(){
   loadAll();
 }
 
+document.getElementById('btn-refresh').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-refresh');
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  try{
+    await loadAll();
+  } finally {
+    btn.disabled = false;
+    btn.style.opacity = '';
+  }
+});
+
 async function ensureFreshToken(){
   if(!accessToken || Date.now() >= tokenExpiresAt){
     try{ await requestToken(''); }
@@ -775,6 +795,28 @@ function renderAll(){
 
 function fmtEuro(n){ return n.toLocaleString('fr-FR', {minimumFractionDigits:0, maximumFractionDigits:2}) + ' €'; }
 
+// ---------- Persistance de l'état collapse/expand des groupes (localStorage, par onglet) ----------
+function collapsedGroupsKey(sheetKey){ return 'collapsedGroups_' + sheetKey; }
+function getCollapsedGroups(sheetKey){
+  try{ return JSON.parse(localStorage.getItem(collapsedGroupsKey(sheetKey)) || '[]'); }
+  catch(e){ return []; }
+}
+function isGroupCollapsed(sheetKey, groupId){
+  return getCollapsedGroups(sheetKey).includes(groupId);
+}
+function toggleGroupCollapse(sheetKey, groupId, btn){
+  const groupEl = btn.closest('.group');
+  groupEl.classList.toggle('collapsed');
+  const collapsed = groupEl.classList.contains('collapsed');
+  let list = getCollapsedGroups(sheetKey);
+  if(collapsed){
+    if(!list.includes(groupId)) list.push(groupId);
+  } else {
+    list = list.filter(g => g !== groupId);
+  }
+  localStorage.setItem(collapsedGroupsKey(sheetKey), JSON.stringify(list));
+}
+
 function statutClass(s){
   return { 'Terminé':'statut-termine', 'En cours':'statut-encours', 'Abandonné':'statut-abandonne', 'Perdu':'statut-perdu' }[s] || 'statut-encours';
 }
@@ -800,6 +842,63 @@ function renderAccueil(){
     <div class="kpi-card"><div class="label">Revendu au global</div><div class="value">${fmtEuro(revendu)}</div></div>
     <div class="kpi-card"><div class="label">Coût net réel</div><div class="value">${fmtEuro(coutNet)}</div></div>
   `;
+}
+
+/* ---------- Colonnes redimensionnables (test sur Event) ---------- */
+const EVENT_COL_COUNT = 14; // "", Claim, Vendeur, Statut, Init, Payé, EMS, Custom, Dom, Total, Nb PC, €/PC, Frais %, ""
+const EVENT_COL_DEFAULTS = [34,160,110,90,64,64,64,64,64,84,60,72,72,34];
+
+function getEventColWidths(){
+  try{
+    const stored = JSON.parse(localStorage.getItem('eventColWidths') || 'null');
+    if(Array.isArray(stored) && stored.length === EVENT_COL_COUNT) return stored;
+  }catch(e){}
+  return EVENT_COL_DEFAULTS.slice();
+}
+function setEventColWidth(idx, px){
+  const widths = getEventColWidths();
+  widths[idx] = Math.max(30, px);
+  localStorage.setItem('eventColWidths', JSON.stringify(widths));
+  applyEventColWidths();
+}
+function applyEventColWidths(){
+  const widths = getEventColWidths();
+  document.querySelectorAll('table.event-table').forEach(table => {
+    let colgroup = table.querySelector('colgroup');
+    if(!colgroup){
+      colgroup = document.createElement('colgroup');
+      table.insertBefore(colgroup, table.firstChild);
+    }
+    colgroup.innerHTML = widths.map(w => `<col style="width:${w}px">`).join('');
+  });
+}
+function initEventColumnResize(){
+  applyEventColWidths();
+  document.querySelectorAll('table.event-table thead th').forEach((th, idxRaw) => {
+    const idx = idxRaw % EVENT_COL_COUNT; // plusieurs tables (une par groupe) partagent les mêmes colonnes
+    if(th.querySelector('.col-resizer')) return;
+    const handle = document.createElement('span');
+    handle.className = 'col-resizer';
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handle.classList.add('active');
+      const startX = e.clientX;
+      const startWidth = getEventColWidths()[idx];
+      function onMove(ev){
+        const delta = ev.clientX - startX;
+        setEventColWidth(idx, startWidth + delta);
+      }
+      function onUp(){
+        handle.classList.remove('active');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    th.appendChild(handle);
+  });
 }
 
 /* ---------- Achat Event ---------- */
@@ -928,13 +1027,13 @@ function renderEvent(){
     const gTotal = grows.reduce((s,r)=>s+eventRowTotal(r),0);
     const gPC = grows.reduce((s,r)=>s+num(r,10),0);
     return `
-    <div class="group" data-group="${escapeAttr(g)}">
+    <div class="group ${isGroupCollapsed('event', g) ? 'collapsed' : ''}" data-group="${escapeAttr(g)}">
       <div class="group-head">
-        <div class="collapse-btn" onclick="this.closest('.group').classList.toggle('collapsed')">▾</div>
+        <div class="collapse-btn" onclick="toggleGroupCollapse('event', '${escapeAttr(g)}', this)">▾</div>
         <div class="title">${escapeHtml(label)}</div>
         <div class="sub-kpis"><span>${grows.length} claims · <b>${fmtEuro(gTotal)}</b> · ${gPC} PC</span></div>
       </div>
-      <div class="table-scroll"><table>
+      <div class="table-scroll"><table class="event-table">
         <thead><tr>
           <th></th><th>Claim</th><th>Vendeur</th><th>Statut</th><th>Init</th><th>Payé</th>
           <th>EMS</th><th>Custom</th><th>Dom</th><th>Total</th><th>Nb PC</th><th>€/PC</th><th>Frais %</th><th></th>
@@ -944,6 +1043,7 @@ function renderEvent(){
       <div class="add-row"><button class="secondary" onclick="addEventClaim('${escapeAttr(g)}')">+ Ajouter un claim</button></div>
     </div>`;
   }).join('');
+  initEventColumnResize();
 }
 
 function eventRowHtml(r){
@@ -989,29 +1089,24 @@ function renderCB(){
     return true;
   });
 
-  const claims = rows.length;
-  const initSum = rows.reduce((s,r)=>s+num(r,9),0);
-  const frais = rows.reduce((s,r)=>s+num(r,11)+num(r,12)+num(r,13),0);
-  const total = rows.reduce((s,r)=>s+cbRowTotal(r),0);
-  const nbFull = rows.reduce((s,r)=>s+num(r,5),0);
-  document.getElementById('cb-kpi').innerHTML = `
-    <div class="kpi-card"><div class="label">Claims</div><div class="value neutral">${claims}</div></div>
-    <div class="kpi-card"><div class="label">Coût initial</div><div class="value neutral">${fmtEuro(initSum)}</div></div>
-    <div class="kpi-card"><div class="label">Frais (EMS+custom+dom)</div><div class="value neutral">${fmtEuro(frais)}</div></div>
-    <div class="kpi-card"><div class="label">Coût total</div><div class="value">${fmtEuro(total)}</div></div>
-    <div class="kpi-card"><div class="label">Nb albums (full)</div><div class="value neutral">${nbFull}</div></div>
-  `;
+  // Pas de bandeau KPI global sur CB : mélanger plusieurs comebacks entre eux n'a pas de
+  // sens (contrairement à Event où l'agrégat "toutes claims confondues" est utile).
 
   // Coût moyen par catégorie d'album (Total / Full), calculé PAR CB — pas question de
   // mélanger le POCA d'un CB avec le Digipack d'un autre, ça n'aurait aucun sens.
+  // Seules les lignes où Full > 0 entrent dans le calcul : une ligne POB-only (Full vide/0)
+  // n'a pas de prix "par album full" à elle et fausserait la moyenne si on l'incluait.
   const ALBUM_CATS = ['POCA','DIGI','REG','VYN','NA'];
   function albumBreakdown(grows){
     const byCat = {};
     grows.forEach(r => {
       const cat = cell(r,3) || 'NA';
-      if(!byCat[cat]) byCat[cat] = { total:0, full:0 };
-      byCat[cat].total += cbRowTotal(r);
-      byCat[cat].full += num(r,5);
+      const fullQty = num(r,5);
+      if(fullQty > 0){
+        if(!byCat[cat]) byCat[cat] = { total:0, full:0 };
+        byCat[cat].total += cbRowTotal(r);
+        byCat[cat].full += fullQty;
+      }
     });
     return ALBUM_CATS.filter(c => byCat[c]).map(c => {
       const d = byCat[c];
@@ -1040,9 +1135,9 @@ function renderCB(){
     const gCustom = grows.reduce((s,r)=>s+num(r,12),0);
     const gTotal = grows.reduce((s,r)=>s+cbRowTotal(r),0);
     return `
-    <div class="group" data-group="${escapeAttr(g)}">
+    <div class="group ${isGroupCollapsed('cb', g) ? 'collapsed' : ''}" data-group="${escapeAttr(g)}">
       <div class="group-head">
-        <div class="collapse-btn" onclick="this.closest('.group').classList.toggle('collapsed')">▾</div>
+        <div class="collapse-btn" onclick="toggleGroupCollapse('cb', '${escapeAttr(g)}', this)">▾</div>
         <div class="title">${escapeHtml(label)}</div>
         <div class="sub-kpis">
           <span>${gAlbums} albums · <b>${fmtEuro(gInit)}</b> init</span>
