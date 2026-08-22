@@ -141,12 +141,13 @@
   /* ===== Table ===== */
   .table-scroll{ overflow-x:auto; background: var(--surface); }
   table{ width:100%; border-collapse:collapse; }
-  table.event-table{ table-layout:fixed; }
+  table.event-table{ table-layout:fixed; width:auto; }
   table.event-table thead th{ position:relative; overflow:hidden; text-overflow:ellipsis; }
   .col-resizer{
-    position:absolute; top:0; right:-3px; width:6px; height:100%; cursor:col-resize; z-index:3;
+    position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; z-index:3;
+    border-right:2px solid transparent;
   }
-  .col-resizer:hover, .col-resizer.active{ background: var(--accent-soft); }
+  .col-resizer:hover, .col-resizer.active{ border-right-color: var(--accent); }
   thead th{
     text-align:left; font-size:0.6rem; text-transform:uppercase; letter-spacing:0.03em; color: var(--ink-faint);
     font-weight:600; padding:7px 6px; border-bottom:1px solid var(--line); white-space:nowrap;
