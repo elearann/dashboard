@@ -415,6 +415,7 @@ const ALIM_SUPP = [
   { key:"Poulet",        label:"Poulet 10g",          kcal:19,  prot:2.3 },
   { key:"Œuf",           label:"Œuf dur",              kcal:80,  prot:6  },
   { key:"Fromage blanc", label:"Fromage blanc 100g",  kcal:69,  prot:8  },
+  { key:"Barre prot",    label:"Barre prot 1 unité",  kcal:200, prot:20 },
 ];
 const ALIM_ITEMS = [...ALIM_CHEEF, ...ALIM_SUPP];
 
@@ -586,7 +587,7 @@ const DOW_OFFSET = d => (d.getDay()+6)%7; // lundi=0
 async function loadAll(){
   setStatus("Chargement...");
   try{
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?ranges=${encodeURIComponent(SHEET_DAILY+'!A1:D')}&ranges=${encodeURIComponent(SHEET_MES+'!A1:M')}&ranges=${encodeURIComponent(SHEET_ALIM+'!A1:O')}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?ranges=${encodeURIComponent(SHEET_DAILY+'!A1:D')}&ranges=${encodeURIComponent(SHEET_MES+'!A1:M')}&ranges=${encodeURIComponent(SHEET_ALIM+'!A1:P')}`;
     const data = await apiFetch(url);
     const [dv, mv, av] = data.valueRanges.map(r => r.values || []);
 
@@ -958,7 +959,7 @@ els.alimSave.addEventListener('click', async () => {
   try{
     const existing = alimByDate[selectedDailyDate];
     if(existing){
-      const range = `${SHEET_ALIM}!A${existing.rowIndex}:O${existing.rowIndex}`;
+      const range = `${SHEET_ALIM}!A${existing.rowIndex}:P${existing.rowIndex}`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
       await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[rowValues]}) });
       existing.counts = {...alimCounts};
@@ -967,7 +968,7 @@ els.alimSave.addEventListener('click', async () => {
       existing.libreProt = libreProt;
       existing.note = els.alimNote.value;
     } else {
-      const range = `${SHEET_ALIM}!A1:O1`;
+      const range = `${SHEET_ALIM}!A1:P1`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
       const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
       const updatedRange = res.updates.updatedRange;
@@ -990,9 +991,9 @@ els.alimDelete.addEventListener('click', async () => {
   if(!existing){ loadAlimFormForDate(selectedDailyDate); return; }
   setStatus("Suppression...");
   try{
-    const range = `${SHEET_ALIM}!A${existing.rowIndex}:O${existing.rowIndex}`;
+    const range = `${SHEET_ALIM}!A${existing.rowIndex}:P${existing.rowIndex}`;
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-    const blank = Array(15).fill("");
+    const blank = Array(16).fill("");
     await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[blank]}) });
     delete alimByDate[selectedDailyDate];
     alimRows = alimRows.filter(r => r !== existing);
