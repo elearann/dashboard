@@ -307,11 +307,8 @@
         <p class="card-sub">Compléments protéines</p>
         <div class="counter-row" id="alim-supp-counters"></div>
         <p class="card-sub">Saisie libre (jour non-Cheef)</p>
-        <input type="text" id="alim-libre-texte" placeholder="Ce que t'as mangé" style="margin-bottom:8px;">
-        <div class="libre-row">
-          <input type="number" inputmode="decimal" id="alim-libre-kcal" placeholder="kcal">
-          <input type="number" inputmode="decimal" id="alim-libre-prot" placeholder="protéines (g)">
-        </div>
+        <div id="alim-libre-list"></div>
+        <button type="button" id="alim-libre-add" style="margin-bottom:16px;">+ Ajouter un aliment</button>
         <div id="alim-total">— kcal · <b>—</b> g protéines / 110g</div>
         <div id="alim-progress-wrap"><div id="alim-progress-bar"></div></div>
         <input type="text" id="alim-note" class="note-input" placeholder="Note (optionnel)">
@@ -384,12 +381,14 @@ const UNITS   = ["kg","%","cm","cm","cm","cm","cm","cm","cm","cm","cm"];
 const METRIC_COLORS = ["#378ADD","#D85A30","#1D9E75","#D4537E","#BA7517","#7F77DD","#639922","#534AB7","#993556","#0F6E56","#5F5E5A"];
 
 const ALIM_TARGET_PROT = 110;
-// clé = nom de colonne dans la sheet Alim (B..H)
+// clé = nom de colonne dans la sheet Alim (B..I)
+// Petit-déj/Encas : moyenne des 7 produits sucrés Cheef (pancakes, cakes, brownie, gaufres) = ~165 kcal / ~3g prot chacun
 const ALIM_CHEEF = [
-  { key:"Barquettes",    label:"Barquette",         kcal:345, prot:20 },
-  { key:"Petit-déj",     label:"Petit-déj / encas", kcal:330, prot:8  },
-  { key:"Fruit",         label:"Fruit / compote",   kcal:75,  prot:1  },
-  { key:"Yaourt",        label:"Yaourt",            kcal:100, prot:6  },
+  { key:"Barquettes",    label:"Barquette",   kcal:345, prot:20 },
+  { key:"Petit-déj",     label:"Petit-déj",   kcal:165, prot:3  },
+  { key:"Encas",         label:"Encas",       kcal:165, prot:3  },
+  { key:"Fruit",         label:"Fruit / compote", kcal:75,  prot:1  },
+  { key:"Yaourt",        label:"Yaourt",      kcal:100, prot:6  },
 ];
 const ALIM_SUPP = [
   { key:"Poulet",        label:"Poulet 100g",         kcal:120, prot:21 },
@@ -412,6 +411,7 @@ let selectedDailyDate = null;
 let selectedSports = [];
 let selectedDiet = null;
 let alimCounts = {}; // key -> count, pour la date sélectionnée (= selectedDailyDate)
+let alimLibreItems = []; // [{texte, kcal, prot}], pour la date sélectionnée
 
 let selectedMetrics = [0];
 let selectedScale = 90;
@@ -439,9 +439,8 @@ const els = {
   calNext: document.getElementById('cal-next'),
   alimCheefCounters: document.getElementById('alim-cheef-counters'),
   alimSuppCounters: document.getElementById('alim-supp-counters'),
-  alimLibreTexte: document.getElementById('alim-libre-texte'),
-  alimLibreKcal: document.getElementById('alim-libre-kcal'),
-  alimLibreProt: document.getElementById('alim-libre-prot'),
+  alimLibreList: document.getElementById('alim-libre-list'),
+  alimLibreAdd: document.getElementById('alim-libre-add'),
   alimTotal: document.getElementById('alim-total'),
   alimProgressBar: document.getElementById('alim-progress-bar'),
   alimNote: document.getElementById('alim-note'),
@@ -566,7 +565,7 @@ const DOW_OFFSET = d => (d.getDay()+6)%7; // lundi=0
 async function loadAll(){
   setStatus("Chargement...");
   try{
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?ranges=${encodeURIComponent(SHEET_DAILY+'!A1:D')}&ranges=${encodeURIComponent(SHEET_MES+'!A1:M')}&ranges=${encodeURIComponent(SHEET_ALIM+'!A1:N')}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?ranges=${encodeURIComponent(SHEET_DAILY+'!A1:D')}&ranges=${encodeURIComponent(SHEET_MES+'!A1:M')}&ranges=${encodeURIComponent(SHEET_ALIM+'!A1:O')}`;
     const data = await apiFetch(url);
     const [dv, mv, av] = data.valueRanges.map(r => r.values || []);
 
@@ -600,8 +599,8 @@ async function loadAll(){
       ALIM_ITEMS.forEach((it,j) => { counts[it.key] = parseInt(r[j+1]) || 0; });
       const entry = {
         rowIndex:i+1, date:r[0], counts,
-        libreTexte: r[8]||"", libreKcal: r[9]||"", libreProt: r[10]||"",
-        note: r[13]||""
+        libreTexte: r[ALIM_ITEMS.length+1]||"", libreKcal: r[ALIM_ITEMS.length+2]||"", libreProt: r[ALIM_ITEMS.length+3]||"",
+        note: r[ALIM_ITEMS.length+6]||""
       };
       alimRows.push(entry);
       alimByDate[entry.date] = entry;
@@ -831,10 +830,10 @@ function computeAlimTotals(){
     kcal += c * it.kcal;
     prot += c * it.prot;
   });
-  const libreKcal = parseFloat(String(els.alimLibreKcal.value).replace(',','.')) || 0;
-  const libreProt = parseFloat(String(els.alimLibreProt.value).replace(',','.')) || 0;
-  kcal += libreKcal;
-  prot += libreProt;
+  alimLibreItems.forEach(it => {
+    kcal += parseFloat(String(it.kcal).replace(',','.')) || 0;
+    prot += parseFloat(String(it.prot).replace(',','.')) || 0;
+  });
   return { kcal, prot };
 }
 
@@ -845,19 +844,55 @@ function renderAlimTotals(){
   els.alimProgressBar.style.width = pct + '%';
 }
 
-[els.alimLibreKcal, els.alimLibreProt].forEach(input => {
-  input.addEventListener('input', renderAlimTotals);
+function renderAlimLibreList(){
+  els.alimLibreList.innerHTML = "";
+  alimLibreItems.forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className = 'libre-row';
+    row.style.marginBottom = '8px';
+
+    const texte = document.createElement('input');
+    texte.type = 'text'; texte.placeholder = 'Aliment'; texte.value = item.texte || "";
+    texte.style.flex = '2';
+    texte.addEventListener('input', () => { item.texte = texte.value; });
+
+    const kcal = document.createElement('input');
+    kcal.type = 'number'; kcal.inputMode = 'decimal'; kcal.placeholder = 'kcal'; kcal.value = item.kcal || "";
+    kcal.addEventListener('input', () => { item.kcal = kcal.value; renderAlimTotals(); });
+
+    const prot = document.createElement('input');
+    prot.type = 'number'; prot.inputMode = 'decimal'; prot.placeholder = 'prot (g)'; prot.value = item.prot || "";
+    prot.addEventListener('input', () => { item.prot = prot.value; renderAlimTotals(); });
+
+    const del = document.createElement('button');
+    del.type = 'button'; del.textContent = '×'; del.title = 'Supprimer';
+    del.style.flex = '0 0 auto'; del.style.padding = '8px 12px';
+    del.addEventListener('click', () => {
+      alimLibreItems.splice(idx,1);
+      renderAlimLibreList();
+      renderAlimTotals();
+    });
+
+    row.appendChild(texte); row.appendChild(kcal); row.appendChild(prot); row.appendChild(del);
+    els.alimLibreList.appendChild(row);
+  });
+}
+
+els.alimLibreAdd.addEventListener('click', () => {
+  alimLibreItems.push({ texte:"", kcal:"", prot:"" });
+  renderAlimLibreList();
 });
 
 function loadAlimFormForDate(fr){
   const entry = alimByDate[fr];
   alimCounts = {};
   ALIM_ITEMS.forEach(it => { alimCounts[it.key] = entry ? (entry.counts[it.key] || 0) : 0; });
-  els.alimLibreTexte.value = entry ? entry.libreTexte : "";
-  els.alimLibreKcal.value = entry ? entry.libreKcal : "";
-  els.alimLibreProt.value = entry ? entry.libreProt : "";
+  // Note : la sheet ne stocke que le texte combiné + la somme kcal/prot du jour (pas le détail par aliment).
+  // À la réouverture d'un jour déjà saisi, tout réapparaît sur une seule ligne éditable.
+  alimLibreItems = (entry && entry.libreTexte) ? [{ texte: entry.libreTexte, kcal: entry.libreKcal, prot: entry.libreProt }] : [];
   els.alimNote.value = entry ? entry.note : "";
   renderAlimCounters();
+  renderAlimLibreList();
   renderAlimTotals();
 }
 
@@ -865,12 +900,20 @@ els.alimSave.addEventListener('click', async () => {
   if(!selectedDailyDate) return;
   setStatus("Enregistrement...");
   const { kcal, prot } = computeAlimTotals();
+  const cleanItems = alimLibreItems.filter(it => (it.texte||"").trim() !== "" || it.kcal || it.prot);
+  const libreTexte = cleanItems.map(it => {
+    const parts = [it.texte||"(aliment)"];
+    if(it.kcal || it.prot) parts.push(`${it.kcal||0}kcal/${it.prot||0}g`);
+    return parts.join(" — ");
+  }).join(" ; ");
+  const libreKcal = cleanItems.reduce((s,it)=> s + (parseFloat(String(it.kcal).replace(',','.'))||0), 0);
+  const libreProt = cleanItems.reduce((s,it)=> s + (parseFloat(String(it.prot).replace(',','.'))||0), 0);
   const rowValues = [
     selectedDailyDate,
     ...ALIM_ITEMS.map(it => alimCounts[it.key] || 0),
-    els.alimLibreTexte.value,
-    els.alimLibreKcal.value,
-    els.alimLibreProt.value,
+    libreTexte,
+    libreKcal || "",
+    libreProt || "",
     Math.round(kcal),
     Math.round(prot),
     els.alimNote.value
@@ -878,23 +921,23 @@ els.alimSave.addEventListener('click', async () => {
   try{
     const existing = alimByDate[selectedDailyDate];
     if(existing){
-      const range = `${SHEET_ALIM}!A${existing.rowIndex}:N${existing.rowIndex}`;
+      const range = `${SHEET_ALIM}!A${existing.rowIndex}:O${existing.rowIndex}`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
       await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[rowValues]}) });
       existing.counts = {...alimCounts};
-      existing.libreTexte = els.alimLibreTexte.value;
-      existing.libreKcal = els.alimLibreKcal.value;
-      existing.libreProt = els.alimLibreProt.value;
+      existing.libreTexte = libreTexte;
+      existing.libreKcal = libreKcal;
+      existing.libreProt = libreProt;
       existing.note = els.alimNote.value;
     } else {
-      const range = `${SHEET_ALIM}!A1:N1`;
+      const range = `${SHEET_ALIM}!A1:O1`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
       const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
       const updatedRange = res.updates.updatedRange;
       const rowIndex = parseInt(updatedRange.match(/(\d+)(?::|$)/)[1]);
       const entry = {
         rowIndex, date:selectedDailyDate, counts:{...alimCounts},
-        libreTexte: els.alimLibreTexte.value, libreKcal: els.alimLibreKcal.value, libreProt: els.alimLibreProt.value,
+        libreTexte, libreKcal, libreProt,
         note: els.alimNote.value
       };
       alimRows.push(entry);
@@ -910,9 +953,9 @@ els.alimDelete.addEventListener('click', async () => {
   if(!existing){ loadAlimFormForDate(selectedDailyDate); return; }
   setStatus("Suppression...");
   try{
-    const range = `${SHEET_ALIM}!A${existing.rowIndex}:N${existing.rowIndex}`;
+    const range = `${SHEET_ALIM}!A${existing.rowIndex}:O${existing.rowIndex}`;
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-    const blank = Array(14).fill("");
+    const blank = Array(15).fill("");
     await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[blank]}) });
     delete alimByDate[selectedDailyDate];
     alimRows = alimRows.filter(r => r !== existing);
