@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Régime / Muscu Tracker</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -272,14 +272,14 @@
         </div>
         <div id="cal-grid"></div>
         <div id="cal-legend">
-          <span><i class="ti ti-heartbeat cal-icon"></i>Cardio</span>
-          <span><i class="ti ti-barbell cal-icon"></i>Muscu</span>
-          <span><i class="ti ti-walk cal-icon"></i>Marche</span>
-          <span><i class="ti ti-player-play cal-icon"></i>Vidéo YT</span>
-          <span><i class="ti ti-asterisk cal-icon"></i>Autre</span>
-          <span><i class="ti ti-check cal-icon"></i>Diète suivie</span>
-          <span><i class="ti ti-x cal-icon"></i>Diète non suivie</span>
-          <span><i class="ti ti-meat cal-icon"></i>Alimentation saisie</span>
+          <span><i class="fa-solid fa-heart-pulse cal-icon"></i>Cardio</span>
+          <span><i class="fa-solid fa-dumbbell cal-icon"></i>Muscu</span>
+          <span><i class="fa-solid fa-person-walking cal-icon"></i>Marche</span>
+          <span><i class="fa-solid fa-play cal-icon"></i>Vidéo YT</span>
+          <span><i class="fa-solid fa-asterisk cal-icon"></i>Autre</span>
+          <span><i class="fa-solid fa-check cal-icon"></i>Diète suivie</span>
+          <span><i class="fa-solid fa-xmark cal-icon"></i>Diète non suivie</span>
+          <span><i class="fa-solid fa-drumstick-bite cal-icon"></i>Alimentation saisie</span>
         </div>
       </div>
 
@@ -393,7 +393,7 @@ const SHEET_DAILY = "Daily";
 const SHEET_MES = "Mesures";
 const SHEET_ALIM = "Alim";
 const SPORT_TYPES = ["Cardio","Muscu","Marche","Vidéo YT","Autre"];
-const SPORT_ICON = { "Cardio":"ti-heartbeat", "Muscu":"ti-barbell", "Marche":"ti-walk", "Vidéo YT":"ti-player-play", "Autre":"ti-asterisk" };
+const SPORT_ICON = { "Cardio":"fa-heart-pulse", "Muscu":"fa-dumbbell", "Marche":"fa-person-walking", "Vidéo YT":"fa-play", "Autre":"fa-asterisk" };
 const METRICS = ["Poids","Fat %","Biceps","Haut cuisse","Bas cuisse","Mollet","Fesses","Hanche/bas ventre","Taille","Seins","Cou"];
 const UNITS   = ["kg","%","cm","cm","cm","cm","cm","cm","cm","cm","cm"];
 const METRIC_COLORS = ["#378ADD","#D85A30","#1D9E75","#D4537E","#BA7517","#7F77DD","#639922","#534AB7","#993556","#0F6E56","#5F5E5A"];
@@ -675,12 +675,12 @@ function renderCalendar(){
     dotsWrap.className = 'dots';
       if(entry){
         SPORT_TYPES.forEach(s => {
-          if(entry.sport.includes(s)){ const icon=document.createElement('i'); icon.className='ti '+SPORT_ICON[s]+' cal-icon'; dotsWrap.appendChild(icon); }
+          if(entry.sport.includes(s)){ const icon=document.createElement('i'); icon.className='fa-solid '+SPORT_ICON[s]+' cal-icon'; dotsWrap.appendChild(icon); }
         });
-        if(entry.diet === 'Oui' || entry.diet === 'Partiel'){ const icon=document.createElement('i'); icon.className='ti ti-check cal-icon'; dotsWrap.appendChild(icon); }
-        if(entry.diet === 'Non'){ const icon=document.createElement('i'); icon.className='ti ti-x cal-icon'; dotsWrap.appendChild(icon); }
+        if(entry.diet === 'Oui' || entry.diet === 'Partiel'){ const icon=document.createElement('i'); icon.className='fa-solid fa-check cal-icon'; dotsWrap.appendChild(icon); }
+        if(entry.diet === 'Non'){ const icon=document.createElement('i'); icon.className='fa-solid fa-xmark cal-icon'; dotsWrap.appendChild(icon); }
       }
-      if(alimByDate[fr]){ const icon=document.createElement('i'); icon.className='ti ti-meat cal-icon'; dotsWrap.appendChild(icon); }
+      if(alimByDate[fr]){ const icon=document.createElement('i'); icon.className='fa-solid fa-drumstick-bite cal-icon'; dotsWrap.appendChild(icon); }
     cell.appendChild(dotsWrap);
     cell.addEventListener('click', () => selectDailyDate(fr));
     els.calGrid.appendChild(cell);
