@@ -167,6 +167,11 @@
   .cal-day .dots{ display:flex; gap:2px; }
   .dot{ width:4px; height:4px; border-radius:50%; display:inline-block; }
   .dot-sport{ background: var(--accent-border); }
+  .dot-cardio{ background: #378ADD; }
+  .dot-muscu{ background: #7F77DD; }
+  .dot-marche{ background: #1D9E75; }
+  .dot-video{ background: #D4537E; }
+  .dot-autre{ background: #0F6E56; }
   .dot-diet{ background: var(--warn); }
   .dot-diet-non{ background: var(--danger); }
   .dot-mes{ background: var(--accent-border); }
@@ -272,7 +277,11 @@
         </div>
         <div id="cal-grid"></div>
         <div id="cal-legend">
-          <span><span class="dot dot-sport"></span>Sport</span>
+          <span><span class="dot dot-cardio"></span>Cardio</span>
+          <span><span class="dot dot-muscu"></span>Muscu</span>
+          <span><span class="dot dot-marche"></span>Marche</span>
+          <span><span class="dot dot-video"></span>Vidéo YT</span>
+          <span><span class="dot dot-autre"></span>Autre</span>
           <span><span class="dot dot-diet"></span>Diète suivie</span>
           <span><span class="dot dot-diet-non"></span>Diète non suivie</span>
         </div>
@@ -284,6 +293,7 @@
         <div class="chip-row" id="sport-chips">
           <span class="chip" data-sport="Cardio">Cardio</span>
           <span class="chip" data-sport="Muscu">Muscu</span>
+          <span class="chip" data-sport="Marche">Marche</span>
           <span class="chip" data-sport="Vidéo YT">Vidéo YT</span>
           <span class="chip" data-sport="Autre">Autre</span>
         </div>
@@ -375,7 +385,8 @@ const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 const SHEET_DAILY = "Daily";
 const SHEET_MES = "Mesures";
 const SHEET_ALIM = "Alim";
-const SPORT_TYPES = ["Cardio","Muscu","Vidéo YT","Autre"];
+const SPORT_TYPES = ["Cardio","Muscu","Marche","Vidéo YT","Autre"];
+const SPORT_DOT_CLASS = { "Cardio":"dot-cardio", "Muscu":"dot-muscu", "Marche":"dot-marche", "Vidéo YT":"dot-video", "Autre":"dot-autre" };
 const METRICS = ["Poids","Fat %","Biceps","Haut cuisse","Bas cuisse","Mollet","Fesses","Hanche/bas ventre","Taille","Seins","Cou"];
 const UNITS   = ["kg","%","cm","cm","cm","cm","cm","cm","cm","cm","cm"];
 const METRIC_COLORS = ["#378ADD","#D85A30","#1D9E75","#D4537E","#BA7517","#7F77DD","#639922","#534AB7","#993556","#0F6E56","#5F5E5A"];
@@ -654,11 +665,13 @@ function renderCalendar(){
     const entry = dailyByDate[fr];
     const dotsWrap = document.createElement('span');
     dotsWrap.className = 'dots';
-    if(entry){
-      if(entry.sport.length){ const dot=document.createElement('span'); dot.className='dot dot-sport'; dotsWrap.appendChild(dot); }
-      if(entry.diet === 'Oui' || entry.diet === 'Partiel'){ const dot=document.createElement('span'); dot.className='dot dot-diet'; dotsWrap.appendChild(dot); }
-      if(entry.diet === 'Non'){ const dot=document.createElement('span'); dot.className='dot dot-diet-non'; dotsWrap.appendChild(dot); }
-    }
+      if(entry){
+        SPORT_TYPES.forEach(s => {
+          if(entry.sport.includes(s)){ const dot=document.createElement('span'); dot.className='dot '+SPORT_DOT_CLASS[s]; dotsWrap.appendChild(dot); }
+        });
+        if(entry.diet === 'Oui' || entry.diet === 'Partiel'){ const dot=document.createElement('span'); dot.className='dot dot-diet'; dotsWrap.appendChild(dot); }
+        if(entry.diet === 'Non'){ const dot=document.createElement('span'); dot.className='dot dot-diet-non'; dotsWrap.appendChild(dot); }
+      }
     cell.appendChild(dotsWrap);
     cell.addEventListener('click', () => selectDailyDate(fr));
     els.calGrid.appendChild(cell);
