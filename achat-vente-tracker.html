@@ -141,8 +141,8 @@
   /* ===== Table ===== */
   .table-scroll{ overflow-x:auto; background: var(--surface); }
   table{ width:100%; border-collapse:collapse; }
-  table.event-table{ table-layout:fixed; width:auto; }
-  table.event-table thead th{ position:relative; overflow:hidden; text-overflow:ellipsis; }
+  table.resizable-table{ table-layout:fixed; width:auto; }
+  table.resizable-table thead th{ position:relative; overflow:hidden; text-overflow:ellipsis; }
   .col-resizer{
     position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; z-index:3;
     border-right:2px solid transparent;
@@ -158,6 +158,8 @@
   #cb-groups .table-scroll td input, #cb-groups .table-scroll td select{ width:100%; box-sizing:border-box; }
   #event-groups .table-scroll td{ overflow:hidden; }
   #event-groups .table-scroll td input, #event-groups .table-scroll td select{ width:100%; box-sizing:border-box; }
+  #page-ventes .table-scroll td{ overflow:hidden; }
+  #page-ventes .table-scroll td input, #page-ventes .table-scroll td select{ width:100%; box-sizing:border-box; }
   tbody tr:last-child td{ border-bottom:none; }
   td.claim-icon{ width:1%; padding-right:2px; }
   .pencil{
@@ -432,7 +434,7 @@
         <button class="icon-btn primary" id="ventes-add" title="Ajouter une vente">+</button>
       </div>
     </div>
-    <div class="table-scroll"><table>
+    <div class="table-scroll"><table class="ventes-table resizable-table">
       <thead><tr>
         <th></th><th>Event ou CB</th><th>Item</th><th>Acheteur</th><th>Prix vente</th><th>Prix achat</th><th>Bénéf</th><th>Nb PC</th><th>État</th><th>Date</th><th></th>
       </tr></thead>
@@ -451,8 +453,7 @@
       <div class="toolbar-spacer"></div>
       <div class="toolbar-actions"><button onclick="openGomModal()">+ Ajouter</button></div>
     </div>
-    <div class="table-scroll ref-table"><table>
-      <colgroup><col style="width:18%"><col style="width:14%"><col style="width:12%"><col></colgroup>
+    <div class="table-scroll ref-table"><table class="gom-table resizable-table">
       <thead><tr><th>Nom GOM / Seller</th><th>Lieu</th><th>Canal</th><th>Commentaire</th></tr></thead>
       <tbody id="gom-body"></tbody>
     </table></div>
@@ -468,8 +469,7 @@
       <div class="toolbar-spacer"></div>
       <div class="toolbar-actions"><button onclick="openEvcbModal()">+ Ajouter</button></div>
     </div>
-    <div class="table-scroll ref-table"><table>
-      <colgroup><col><col style="width:10%"><col style="width:24%"></colgroup>
+    <div class="table-scroll ref-table"><table class="evcb-table resizable-table">
       <thead><tr><th>Nom</th><th>Type</th><th>Commentaire</th></tr></thead>
       <tbody id="evcb-body"></tbody>
     </table></div>
@@ -847,62 +847,80 @@ function renderAccueil(){
   `;
 }
 
-/* ---------- Colonnes redimensionnables (test sur Event) ---------- */
-const EVENT_COL_COUNT = 14; // "", Claim, Vendeur, Statut, Init, Payé, EMS, Custom, Dom, Total, Nb PC, €/PC, Frais %, ""
-const EVENT_COL_DEFAULTS = [34,160,110,90,64,64,64,64,64,84,60,72,72,34];
-
-function getEventColWidths(){
-  try{
-    const stored = JSON.parse(localStorage.getItem('eventColWidths') || 'null');
-    if(Array.isArray(stored) && stored.length === EVENT_COL_COUNT) return stored;
-  }catch(e){}
-  return EVENT_COL_DEFAULTS.slice();
-}
-function setEventColWidth(idx, px){
-  const widths = getEventColWidths();
-  widths[idx] = Math.max(30, px);
-  localStorage.setItem('eventColWidths', JSON.stringify(widths));
-  applyEventColWidths();
-}
-function applyEventColWidths(){
-  const widths = getEventColWidths();
-  document.querySelectorAll('table.event-table').forEach(table => {
-    let colgroup = table.querySelector('colgroup');
-    if(!colgroup){
-      colgroup = document.createElement('colgroup');
-      table.insertBefore(colgroup, table.firstChild);
-    }
-    colgroup.innerHTML = widths.map(w => `<col style="width:${w}px">`).join('');
-  });
-}
-function initEventColumnResize(){
-  applyEventColWidths();
-  document.querySelectorAll('table.event-table thead th').forEach((th, idxRaw) => {
-    const idx = idxRaw % EVENT_COL_COUNT; // plusieurs tables (une par groupe) partagent les mêmes colonnes
-    if(th.querySelector('.col-resizer')) return;
-    const handle = document.createElement('span');
-    handle.className = 'col-resizer';
-    handle.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      handle.classList.add('active');
-      const startX = e.clientX;
-      const startWidth = getEventColWidths()[idx];
-      function onMove(ev){
-        const delta = ev.clientX - startX;
-        setEventColWidth(idx, startWidth + delta);
+/* ---------- Colonnes redimensionnables (générique, tous les tableaux) ---------- */
+// Fabrique un gestionnaire de largeurs de colonnes pour un tableau donné : drag sur la
+// bordure d'un th, largeur mémorisée en localStorage (clé dédiée par tableau), largeurs
+// par défaut codées en dur (pas de valeurs arbitraires laissées au hasard).
+function makeColumnResizer(storageKey, colCount, defaults, tableSelector){
+  function getWidths(){
+    try{
+      const stored = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      if(Array.isArray(stored) && stored.length === colCount) return stored;
+    }catch(e){}
+    return defaults.slice();
+  }
+  function setWidth(idx, px){
+    const widths = getWidths();
+    widths[idx] = Math.max(30, px);
+    localStorage.setItem(storageKey, JSON.stringify(widths));
+    applyWidths();
+  }
+  function applyWidths(){
+    const widths = getWidths();
+    document.querySelectorAll(tableSelector).forEach(table => {
+      let colgroup = table.querySelector('colgroup');
+      if(!colgroup){
+        colgroup = document.createElement('colgroup');
+        table.insertBefore(colgroup, table.firstChild);
       }
-      function onUp(){
-        handle.classList.remove('active');
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+      colgroup.innerHTML = widths.map(w => `<col style="width:${w}px">`).join('');
     });
-    th.appendChild(handle);
-  });
+  }
+  function init(){
+    applyWidths();
+    document.querySelectorAll(tableSelector + ' thead th').forEach((th, idxRaw) => {
+      const idx = idxRaw % colCount; // plusieurs tables (une par groupe) peuvent partager les mêmes colonnes
+      if(th.querySelector('.col-resizer')) return;
+      const handle = document.createElement('span');
+      handle.className = 'col-resizer';
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handle.classList.add('active');
+        const startX = e.clientX;
+        const startWidth = getWidths()[idx];
+        function onMove(ev){
+          setWidth(idx, startWidth + (ev.clientX - startX));
+        }
+        function onUp(){
+          handle.classList.remove('active');
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+      th.appendChild(handle);
+    });
+  }
+  return { init };
 }
+
+// "", Claim, Vendeur, Statut, Init, Payé, EMS, Custom, Dom, Total, Nb PC, €/PC, Frais %, ""
+const eventColResizer = makeColumnResizer('eventColWidths', 14,
+  [34,160,110,90,64,64,64,64,64,84,60,72,72,34], 'table.event-table');
+// "", Vendeur, Statut, Store, Album, Nb alb., Full, Incl., POB/membre, Nb POB, Init, Payé, EMS, Custom, Dom, Total, Frais %, ""
+const cbColResizer = makeColumnResizer('cbColWidths', 18,
+  [34,110,100,110,80,60,55,55,150,60,65,70,65,65,65,80,65,30], 'table.cb-table');
+// "", Event ou CB, Item, Acheteur, Prix vente, Prix achat, Bénéf, Nb PC, État, Date, ""
+const ventesColResizer = makeColumnResizer('ventesColWidths', 11,
+  [34,180,160,130,95,95,85,60,110,110,70], 'table.ventes-table');
+// Nom GOM/Seller, Lieu, Canal, Commentaire
+const gomColResizer = makeColumnResizer('gomColWidths', 4,
+  [220,160,140,320], 'table.gom-table');
+// Nom, Type, Commentaire
+const evcbColResizer = makeColumnResizer('evcbColWidths', 3,
+  [320,140,340], 'table.evcb-table');
 
 /* ---------- Achat Event ---------- */
 function populateVendeurFilters(){
@@ -1036,7 +1054,7 @@ function renderEvent(){
         <div class="title">${escapeHtml(label)}</div>
         <div class="sub-kpis"><span>${grows.length} claims · <b>${fmtEuro(gTotal)}</b> · ${gPC} PC</span></div>
       </div>
-      <div class="table-scroll"><table class="event-table">
+      <div class="table-scroll"><table class="event-table resizable-table">
         <thead><tr>
           <th></th><th>Claim</th><th>Vendeur</th><th>Statut</th><th>Init</th><th>Payé</th>
           <th>EMS</th><th>Custom</th><th>Dom</th><th>Total</th><th>Nb PC</th><th>€/PC</th><th>Frais %</th><th></th>
@@ -1046,7 +1064,7 @@ function renderEvent(){
       <div class="add-row"><button class="secondary" onclick="addEventClaim('${escapeAttr(g)}')">+ Ajouter un claim</button></div>
     </div>`;
   }).join('');
-  initEventColumnResize();
+  eventColResizer.init();
 }
 
 function eventRowHtml(r){
@@ -1099,7 +1117,7 @@ function renderCB(){
   // mélanger le POCA d'un CB avec le Digipack d'un autre, ça n'aurait aucun sens.
   // Seules les lignes où Full > 0 entrent dans le calcul : une ligne POB-only (Full vide/0)
   // n'a pas de prix "par album full" à elle et fausserait la moyenne si on l'incluait.
-  const ALBUM_CATS = ['POCA','DIGI','REG','VYN','NA'];
+  const ALBUM_CATS = ['POCA','DIGI','REG','VYN','SIGN','NA'];
   function albumBreakdown(grows){
     const byCat = {};
     grows.forEach(r => {
@@ -1150,14 +1168,7 @@ function renderCB(){
           ${albumBreakdown(grows)}
         </div>
       </div>
-      <div class="table-scroll"><table>
-        <colgroup>
-          <col style="width:3%"><col style="width:8%"><col style="width:7%"><col style="width:10%">
-          <col style="width:6%"><col style="width:4%"><col style="width:4%"><col style="width:4%">
-          <col style="width:11%"><col style="width:4%"><col style="width:5%"><col style="width:6%">
-          <col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:6%">
-          <col style="width:5%"><col style="width:2%">
-        </colgroup>
+      <div class="table-scroll"><table class="cb-table resizable-table">
         <thead><tr>
           <th></th><th>Vendeur</th><th>Statut</th><th>Store</th><th>Album</th><th>Nb alb.</th><th>Full</th><th>Incl.</th>
           <th>POB / membre</th><th>Nb POB</th><th>Init</th><th>Payé</th>
@@ -1168,6 +1179,7 @@ function renderCB(){
       <div class="add-row"><button class="secondary" onclick="addCbClaim('${escapeAttr(g)}')">+ Ajouter un claim</button></div>
     </div>`;
   }).join('');
+  cbColResizer.init();
 }
 
 function cbRowHtml(r){
@@ -1249,6 +1261,7 @@ function renderVentes(){
       </td>
     </tr>`;
   }).join('');
+  ventesColResizer.init();
 }
 
 /* ---------- Referentiels ---------- */
@@ -1271,6 +1284,8 @@ function renderReferentiels(){
       <td class="mfield mfield-full" data-mlabel="Type">${typeSelectHtml('evcb', r.rowIndex, 2, cell(r,2))}</td>
       <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,3))}" onblur="saveCell('evcb', ${r.rowIndex}, 3, this.value)"></td>
     </tr>`).join('') || `<tr><td colspan="3" style="text-align:center;color:var(--ink-faint);">${evcbSearchQ ? 'Aucun résultat.' : "Aucun event/CB pour l'instant."}</td></tr>`;
+  gomColResizer.init();
+  evcbColResizer.init();
 }
 document.getElementById('gom-search').addEventListener('input', function(){
   gomSearchQ = this.value.trim().toLowerCase();
@@ -1314,7 +1329,7 @@ function typeSelectHtml(sheetKey, rowIndex, colIdx, current){
   </select>`;
 }
 function albumSelectHtml(sheetKey, rowIndex, colIdx, current){
-  const opts = ["POCA","DIGI","REG","VYN","NA"];
+  const opts = ["POCA","DIGI","REG","VYN","SIGN","NA"];
   return `<select onchange="saveCell('${sheetKey}', ${rowIndex}, ${colIdx}, this.value); renderCB();">
     ${opts.map(o=>`<option ${o===(current||'NA')?'selected':''}>${o}</option>`).join('')}
   </select>`;
