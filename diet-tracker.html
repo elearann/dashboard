@@ -274,7 +274,7 @@
           <span class="scale-chip" data-scale="0">Tout</span>
         </div>
         <div id="chart-wrap"><canvas id="mchart"></canvas></div>
-        <p id="chart-hint">Touche un point pour charger la date · double-clique une 2e métrique pour comparer</p>
+        <p id="chart-hint">Touche un point pour charger la date · touche jusqu'à 2 métriques pour les comparer</p>
       </div>
     </div>
   </div>
@@ -621,30 +621,18 @@ function buildMetricPicker(){
     chip.className = 'metric-chip' + (i===0 ? ' active' : '');
     chip.textContent = m;
     chip.dataset.idx = i;
-    let clickTimer = null;
     chip.addEventListener('click', () => {
-      if(clickTimer){
-        clearTimeout(clickTimer);
-        clickTimer = null;
-        // double-clic : ajoute/retire ce metric en comparaison (max 2)
-        if(selectedMetrics.includes(i)){
-          if(selectedMetrics.length>1) selectedMetrics = selectedMetrics.filter(x=>x!==i);
-        } else if(selectedMetrics.length>=2){
-          selectedMetrics = [selectedMetrics[selectedMetrics.length-1], i];
-        } else {
-          selectedMetrics.push(i);
-        }
-        renderMetricChipsActive();
-        renderChart();
+      if(selectedMetrics.includes(i)){
+        // déjà active : la retirer, sauf si c'est la dernière restante
+        if(selectedMetrics.length>1) selectedMetrics = selectedMetrics.filter(x=>x!==i);
+      } else if(selectedMetrics.length>=2){
+        // déjà 2 actives : remplace la plus ancienne
+        selectedMetrics = [selectedMetrics[selectedMetrics.length-1], i];
       } else {
-        clickTimer = setTimeout(() => {
-          clickTimer = null;
-          // simple clic : sélection unique
-          selectedMetrics = [i];
-          renderMetricChipsActive();
-          renderChart();
-        }, 260);
+        selectedMetrics.push(i);
       }
+      renderMetricChipsActive();
+      renderChart();
     });
     els.metricPicker.appendChild(chip);
   });
