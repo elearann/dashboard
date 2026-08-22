@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Régime / Muscu Tracker</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -65,6 +66,7 @@
     main{ max-width: 860px; }
     #panel-cal{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }
     #panel-cal > .card:first-child{ grid-column: 1 / -1; }
+    #alim-chart-card{ grid-column: 1 / -1; }
     #panel-mes{ display:grid; grid-template-columns: 340px 1fr; gap:16px; align-items:start; }
     #panel-mes > .card:first-child{ grid-column: 1 / -1; }
   }
@@ -165,7 +167,7 @@
   .cal-day.selected{ border:2px solid var(--accent-border); }
   .cal-day.today:not(.selected){ font-weight:700; color: var(--ink); }
   .cal-day .dots{ display:flex; gap:2px; flex-wrap:wrap; justify-content:center; }
-  .cal-icon{ font-size:9px; line-height:1; }
+  .cal-icon{ font-size:10px; color: var(--ink-soft); line-height:1; }
   .dot{ width:4px; height:4px; border-radius:50%; display:inline-block; }
   .dot-mes{ background: var(--accent-border); }
   #cal-legend, #cal-legend-mes{ display:flex; gap:14px; flex-wrap:wrap; }
@@ -270,14 +272,14 @@
         </div>
         <div id="cal-grid"></div>
         <div id="cal-legend">
-          <span><span class="cal-icon">🏃</span>Cardio</span>
-          <span><span class="cal-icon">🏋️</span>Muscu</span>
-          <span><span class="cal-icon">🚶</span>Marche</span>
-          <span><span class="cal-icon">▶️</span>Vidéo YT</span>
-          <span><span class="cal-icon">⚡</span>Autre</span>
-          <span><span class="cal-icon">✅</span>Diète suivie</span>
-          <span><span class="cal-icon">❌</span>Diète non suivie</span>
-          <span><span class="cal-icon">🥩</span>Alimentation saisie</span>
+          <span><i class="ti ti-heartbeat cal-icon"></i>Cardio</span>
+          <span><i class="ti ti-barbell cal-icon"></i>Muscu</span>
+          <span><i class="ti ti-walk cal-icon"></i>Marche</span>
+          <span><i class="ti ti-player-play cal-icon"></i>Vidéo YT</span>
+          <span><i class="ti ti-asterisk cal-icon"></i>Autre</span>
+          <span><i class="ti ti-check cal-icon"></i>Diète suivie</span>
+          <span><i class="ti ti-x cal-icon"></i>Diète non suivie</span>
+          <span><i class="ti ti-meat cal-icon"></i>Alimentation saisie</span>
         </div>
       </div>
 
@@ -322,7 +324,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="alim-chart-card">
         <h2>Suivi protéines</h2>
         <div id="alim-scale-picker" style="display:flex;gap:6px;margin-bottom:14px;">
           <span class="scale-chip alim-scale-chip" data-scale="30">1 mois</span>
@@ -391,7 +393,7 @@ const SHEET_DAILY = "Daily";
 const SHEET_MES = "Mesures";
 const SHEET_ALIM = "Alim";
 const SPORT_TYPES = ["Cardio","Muscu","Marche","Vidéo YT","Autre"];
-const SPORT_ICON = { "Cardio":"🏃", "Muscu":"🏋️", "Marche":"🚶", "Vidéo YT":"▶️", "Autre":"⚡" };
+const SPORT_ICON = { "Cardio":"ti-heartbeat", "Muscu":"ti-barbell", "Marche":"ti-walk", "Vidéo YT":"ti-player-play", "Autre":"ti-asterisk" };
 const METRICS = ["Poids","Fat %","Biceps","Haut cuisse","Bas cuisse","Mollet","Fesses","Hanche/bas ventre","Taille","Seins","Cou"];
 const UNITS   = ["kg","%","cm","cm","cm","cm","cm","cm","cm","cm","cm"];
 const METRIC_COLORS = ["#378ADD","#D85A30","#1D9E75","#D4537E","#BA7517","#7F77DD","#639922","#534AB7","#993556","#0F6E56","#5F5E5A"];
@@ -673,12 +675,12 @@ function renderCalendar(){
     dotsWrap.className = 'dots';
       if(entry){
         SPORT_TYPES.forEach(s => {
-          if(entry.sport.includes(s)){ const icon=document.createElement('span'); icon.className='cal-icon'; icon.textContent=SPORT_ICON[s]; dotsWrap.appendChild(icon); }
+          if(entry.sport.includes(s)){ const icon=document.createElement('i'); icon.className='ti '+SPORT_ICON[s]+' cal-icon'; dotsWrap.appendChild(icon); }
         });
-        if(entry.diet === 'Oui' || entry.diet === 'Partiel'){ const icon=document.createElement('span'); icon.className='cal-icon'; icon.textContent='✅'; dotsWrap.appendChild(icon); }
-        if(entry.diet === 'Non'){ const icon=document.createElement('span'); icon.className='cal-icon'; icon.textContent='❌'; dotsWrap.appendChild(icon); }
+        if(entry.diet === 'Oui' || entry.diet === 'Partiel'){ const icon=document.createElement('i'); icon.className='ti ti-check cal-icon'; dotsWrap.appendChild(icon); }
+        if(entry.diet === 'Non'){ const icon=document.createElement('i'); icon.className='ti ti-x cal-icon'; dotsWrap.appendChild(icon); }
       }
-      if(alimByDate[fr]){ const icon=document.createElement('span'); icon.className='cal-icon'; icon.textContent='🥩'; dotsWrap.appendChild(icon); }
+      if(alimByDate[fr]){ const icon=document.createElement('i'); icon.className='ti ti-meat cal-icon'; dotsWrap.appendChild(icon); }
     cell.appendChild(dotsWrap);
     cell.addEventListener('click', () => selectDailyDate(fr));
     els.calGrid.appendChild(cell);
