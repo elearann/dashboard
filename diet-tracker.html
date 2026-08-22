@@ -164,16 +164,9 @@
   .cal-day.empty{ visibility:hidden; cursor:default; }
   .cal-day.selected{ border:2px solid var(--accent-border); }
   .cal-day.today:not(.selected){ font-weight:700; color: var(--ink); }
-  .cal-day .dots{ display:flex; gap:2px; }
+  .cal-day .dots{ display:flex; gap:2px; flex-wrap:wrap; justify-content:center; }
+  .cal-icon{ font-size:9px; line-height:1; }
   .dot{ width:4px; height:4px; border-radius:50%; display:inline-block; }
-  .dot-sport{ background: var(--accent-border); }
-  .dot-cardio{ background: #378ADD; }
-  .dot-muscu{ background: #7F77DD; }
-  .dot-marche{ background: #1D9E75; }
-  .dot-video{ background: #D4537E; }
-  .dot-autre{ background: #0F6E56; }
-  .dot-diet{ background: var(--warn); }
-  .dot-diet-non{ background: var(--danger); }
   .dot-mes{ background: var(--accent-border); }
   #cal-legend, #cal-legend-mes{ display:flex; gap:14px; flex-wrap:wrap; }
   #cal-legend span, #cal-legend-mes span{ font-size:12px; color: var(--ink-soft); display:flex; align-items:center; gap:6px; }
@@ -277,13 +270,14 @@
         </div>
         <div id="cal-grid"></div>
         <div id="cal-legend">
-          <span><span class="dot dot-cardio"></span>Cardio</span>
-          <span><span class="dot dot-muscu"></span>Muscu</span>
-          <span><span class="dot dot-marche"></span>Marche</span>
-          <span><span class="dot dot-video"></span>Vidéo YT</span>
-          <span><span class="dot dot-autre"></span>Autre</span>
-          <span><span class="dot dot-diet"></span>Diète suivie</span>
-          <span><span class="dot dot-diet-non"></span>Diète non suivie</span>
+          <span><span class="cal-icon">🏃</span>Cardio</span>
+          <span><span class="cal-icon">🏋️</span>Muscu</span>
+          <span><span class="cal-icon">🚶</span>Marche</span>
+          <span><span class="cal-icon">▶️</span>Vidéo YT</span>
+          <span><span class="cal-icon">⚡</span>Autre</span>
+          <span><span class="cal-icon">✅</span>Diète suivie</span>
+          <span><span class="cal-icon">❌</span>Diète non suivie</span>
+          <span><span class="cal-icon">🥩</span>Alimentation saisie</span>
         </div>
       </div>
 
@@ -326,6 +320,17 @@
           <button class="primary" id="alim-save">Enregistrer</button>
           <button class="danger" id="alim-delete">Supprimer</button>
         </div>
+      </div>
+
+      <div class="card">
+        <h2>Suivi protéines</h2>
+        <div id="alim-scale-picker" style="display:flex;gap:6px;margin-bottom:14px;">
+          <span class="scale-chip alim-scale-chip" data-scale="30">1 mois</span>
+          <span class="scale-chip alim-scale-chip active" data-scale="90">3 mois</span>
+          <span class="scale-chip alim-scale-chip" data-scale="0">Tout</span>
+        </div>
+        <div id="alim-chart-wrap" style="position:relative;height:160px;margin-bottom:8px;"><canvas id="alimChart"></canvas></div>
+        <p id="alim-chart-hint" style="font-size:11px;color:var(--ink-faint);margin:0;">Touche un point pour charger la date · ligne pointillée = objectif 110g</p>
       </div>
 
     </div>
@@ -386,7 +391,7 @@ const SHEET_DAILY = "Daily";
 const SHEET_MES = "Mesures";
 const SHEET_ALIM = "Alim";
 const SPORT_TYPES = ["Cardio","Muscu","Marche","Vidéo YT","Autre"];
-const SPORT_DOT_CLASS = { "Cardio":"dot-cardio", "Muscu":"dot-muscu", "Marche":"dot-marche", "Vidéo YT":"dot-video", "Autre":"dot-autre" };
+const SPORT_ICON = { "Cardio":"🏃", "Muscu":"🏋️", "Marche":"🚶", "Vidéo YT":"▶️", "Autre":"⚡" };
 const METRICS = ["Poids","Fat %","Biceps","Haut cuisse","Bas cuisse","Mollet","Fesses","Hanche/bas ventre","Taille","Seins","Cou"];
 const UNITS   = ["kg","%","cm","cm","cm","cm","cm","cm","cm","cm","cm"];
 const METRIC_COLORS = ["#378ADD","#D85A30","#1D9E75","#D4537E","#BA7517","#7F77DD","#639922","#534AB7","#993556","#0F6E56","#5F5E5A"];
@@ -622,6 +627,7 @@ async function loadAll(){
     renderMesCalendar();
     selectDailyDate(toFR(new Date()));
     renderChart();
+    renderAlimChart();
     loadMesFormForDate(els.mesDate.value);
   }catch(e){
     setStatus("Erreur de chargement : " + e.message, true);
@@ -667,11 +673,12 @@ function renderCalendar(){
     dotsWrap.className = 'dots';
       if(entry){
         SPORT_TYPES.forEach(s => {
-          if(entry.sport.includes(s)){ const dot=document.createElement('span'); dot.className='dot '+SPORT_DOT_CLASS[s]; dotsWrap.appendChild(dot); }
+          if(entry.sport.includes(s)){ const icon=document.createElement('span'); icon.className='cal-icon'; icon.textContent=SPORT_ICON[s]; dotsWrap.appendChild(icon); }
         });
-        if(entry.diet === 'Oui' || entry.diet === 'Partiel'){ const dot=document.createElement('span'); dot.className='dot dot-diet'; dotsWrap.appendChild(dot); }
-        if(entry.diet === 'Non'){ const dot=document.createElement('span'); dot.className='dot dot-diet-non'; dotsWrap.appendChild(dot); }
+        if(entry.diet === 'Oui' || entry.diet === 'Partiel'){ const icon=document.createElement('span'); icon.className='cal-icon'; icon.textContent='✅'; dotsWrap.appendChild(icon); }
+        if(entry.diet === 'Non'){ const icon=document.createElement('span'); icon.className='cal-icon'; icon.textContent='❌'; dotsWrap.appendChild(icon); }
       }
+      if(alimByDate[fr]){ const icon=document.createElement('span'); icon.className='cal-icon'; icon.textContent='🥩'; dotsWrap.appendChild(icon); }
     cell.appendChild(dotsWrap);
     cell.addEventListener('click', () => selectDailyDate(fr));
     els.calGrid.appendChild(cell);
@@ -896,6 +903,18 @@ els.alimLibreAdd.addEventListener('click', () => {
   renderAlimLibreList();
 });
 
+function computeEntryAlimTotals(entry){
+  let kcal = 0, prot = 0;
+  ALIM_ITEMS.forEach(it => {
+    const c = entry.counts[it.key] || 0;
+    kcal += c * it.kcal;
+    prot += c * it.prot;
+  });
+  kcal += parseFloat(String(entry.libreKcal).replace(',','.')) || 0;
+  prot += parseFloat(String(entry.libreProt).replace(',','.')) || 0;
+  return { kcal, prot };
+}
+
 function loadAlimFormForDate(fr){
   const entry = alimByDate[fr];
   alimCounts = {};
@@ -956,7 +975,7 @@ els.alimSave.addEventListener('click', async () => {
       alimRows.push(entry);
       alimByDate[selectedDailyDate] = entry;
     }
-    setStatus(""); showSaved();
+    setStatus(""); showSaved(); renderCalendar(); renderAlimChart();
   }catch(e){ setStatus("Erreur : " + e.message, true); }
 });
 
@@ -973,9 +992,73 @@ els.alimDelete.addEventListener('click', async () => {
     delete alimByDate[selectedDailyDate];
     alimRows = alimRows.filter(r => r !== existing);
     loadAlimFormForDate(selectedDailyDate);
+    renderCalendar(); renderAlimChart();
     setStatus(""); showSaved();
   }catch(e){ setStatus("Erreur : " + e.message, true); }
 });
+
+let alimScale = 90;
+document.querySelectorAll('.alim-scale-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.alim-scale-chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    alimScale = parseInt(chip.dataset.scale);
+    renderAlimChart();
+  });
+});
+
+let alimChartInstance = null;
+function renderAlimChart(){
+  let sorted = [...alimRows].sort((a,b) => frToISO(a.date).localeCompare(frToISO(b.date)));
+  if(alimScale > 0){
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - alimScale);
+    sorted = sorted.filter(r => new Date(frToISO(r.date)) >= cutoff);
+  }
+  const labels = sorted.map(r => frLabelShort(r.date));
+  const protData = sorted.map(r => Math.round(computeEntryAlimTotals(r).prot));
+
+  const ctx = document.getElementById('alimChart');
+  if(alimChartInstance) alimChartInstance.destroy();
+  alimChartInstance = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {
+          label:'Protéines (g)',
+          data: protData,
+          borderColor:'#2f5d54',
+          backgroundColor:'transparent',
+          tension:0.3, pointRadius:3, pointHoverRadius:6, borderWidth:2
+        },
+        {
+          label:'Objectif',
+          data: labels.map(()=>ALIM_TARGET_PROT),
+          borderColor:'#b8862f',
+          borderDash:[5,4],
+          borderWidth:1.5,
+          pointRadius:0,
+          fill:false
+        }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:true, position:'top', labels:{boxWidth:10, font:{size:11}, color:'#6b6c68'} } },
+      scales:{
+        x:{ display:false },
+        y:{ ticks:{ font:{size:10}, color:'#6b6c68' }, grid:{ color:'rgba(0,0,0,0.06)' } }
+      },
+      onClick:(evt, elements) => {
+        if(elements.length){
+          const idx = elements[0].index;
+          selectDailyDate(sorted[idx].date);
+        }
+      }
+    }
+  });
+}
 
 /* ---------- Mesures ---------- */
 function buildEntryGrid(){
