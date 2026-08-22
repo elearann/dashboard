@@ -63,7 +63,10 @@
   }
   @media (min-width: 780px){
     main{ max-width: 860px; }
-    #panel-cal, #panel-mes{ display:grid; grid-template-columns: 340px 1fr; gap:16px; align-items:start; }
+    #panel-cal{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }
+    #panel-cal > .card:first-child{ grid-column: 1 / -1; }
+    #panel-mes{ display:grid; grid-template-columns: 340px 1fr; gap:16px; align-items:start; }
+    #panel-mes > .card:first-child{ grid-column: 1 / -1; }
   }
   #auth-bar{ text-align:center; padding: 60px 20px; }
   #auth-bar p{ color: var(--ink-soft); font-size:14px; margin-bottom:18px; }
@@ -124,8 +127,8 @@
   .chip.active-diet-partiel{ background: var(--warn-soft); border-color:transparent; color: var(--warn); }
   .chip.active-diet-non{ background: var(--surface-1); border-color:transparent; color: var(--ink); }
 
-  input[type=text], input[type=date], textarea, button{ margin:0; }
-  input[type=text], input[type=date], textarea{
+  input[type=text], input[type=date], input[type=number], textarea, button{ margin:0; }
+  input[type=text], input[type=date], input[type=number], textarea{
     font-family:'Inter',sans-serif;
     font-size:14px;
     padding:8px 10px;
@@ -136,20 +139,21 @@
     width:100%;
     height:36px;
   }
-  input[type=text]::placeholder{ color: var(--ink-faint); }
+  input[type=text]::placeholder, input[type=number]::placeholder{ color: var(--ink-faint); }
   input:focus, textarea:focus{ outline:none; box-shadow: 0 0 0 1px var(--accent-border); border-color: var(--accent-border); }
   .field-label{ font-size:12px; color: var(--ink-faint); display:block; margin:0 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #entry-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px 8px; margin-bottom:14px; }
   input[type=date]{ max-width:150px; color-scheme: dark; margin-bottom:16px; }
   .note-input{ margin-bottom:16px !important; margin-top:4px !important; }
+  .btn-row{ display:flex; gap:8px; }
   .btn-row button{ flex:1; }
 
-  #cal-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
-  #cal-nav span{ font-size:14px; font-weight:500; }
-  #cal-nav i{ cursor:pointer; font-style:normal; font-size:16px; color: var(--ink-faint); padding:3px 8px; }
-  #cal-dow{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:6px; }
-  #cal-dow span{ font-size:10px; color: var(--ink-faint); text-align:center; }
-  #cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:12px; }
+  #cal-nav, #cal-nav-mes{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  #cal-nav span, #cal-nav-mes span{ font-size:14px; font-weight:500; }
+  #cal-nav i, #cal-nav-mes i{ cursor:pointer; font-style:normal; font-size:16px; color: var(--ink-faint); padding:3px 8px; }
+  #cal-dow, #cal-dow-mes{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:6px; }
+  #cal-dow span, #cal-dow-mes span{ font-size:10px; color: var(--ink-faint); text-align:center; }
+  #cal-grid, #cal-grid-mes{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:12px; }
   .cal-day{
     height:36px;
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
@@ -160,11 +164,14 @@
   .cal-day.empty{ visibility:hidden; cursor:default; }
   .cal-day.selected{ border:2px solid var(--accent-border); }
   .cal-day.today:not(.selected){ font-weight:700; color: var(--ink); }
+  .cal-day .dots{ display:flex; gap:2px; }
   .dot{ width:4px; height:4px; border-radius:50%; display:inline-block; }
   .dot-sport{ background: var(--accent-border); }
   .dot-diet{ background: var(--warn); }
-  #cal-legend{ display:flex; gap:16px; }
-  #cal-legend span{ font-size:12px; color: var(--ink-soft); display:flex; align-items:center; gap:6px; }
+  .dot-diet-non{ background: var(--danger); }
+  .dot-mes{ background: var(--accent-border); }
+  #cal-legend, #cal-legend-mes{ display:flex; gap:14px; flex-wrap:wrap; }
+  #cal-legend span, #cal-legend-mes span{ font-size:12px; color: var(--ink-soft); display:flex; align-items:center; gap:6px; }
 
   #metric-picker{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
   .metric-chip{
@@ -185,6 +192,44 @@
     max-width:400px; margin:20px auto; padding:14px 18px;
     background: var(--warn-soft); border:1px solid var(--warn);
     border-radius:10px; font-size:14px; color: var(--warn); display:none;
+  }
+
+  /* ---------- Bloc Alimentation ---------- */
+  .counter-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .counter-chip{
+    display:flex; align-items:stretch;
+    border:1px solid var(--line-strong);
+    border-radius:8px;
+    overflow:hidden;
+    user-select:none;
+    background:var(--surface);
+  }
+  .counter-chip.has-count{ border-color:transparent; background: var(--accent-soft); }
+  .counter-label{
+    font-size:13px; padding:6px 10px; cursor:pointer; color: var(--ink-soft);
+    display:flex; align-items:center; gap:6px;
+  }
+  .counter-chip.has-count .counter-label{ color: var(--accent); font-weight:500; }
+  .counter-badge{
+    font-size:11px; min-width:16px; text-align:center;
+    background: var(--accent); color:#fff; border-radius:20px; padding:1px 5px;
+  }
+  .counter-minus{
+    font-size:14px; padding:6px 9px; cursor:pointer; color: var(--ink-faint);
+    border-left:1px solid var(--line); display:flex; align-items:center;
+  }
+  .counter-minus:hover{ background: rgba(0,0,0,0.04); }
+  .libre-row{ display:flex; gap:8px; margin-bottom:16px; }
+  .libre-row input{ flex:1; }
+  #alim-total{
+    font-size:14px; margin-bottom:8px; color: var(--ink);
+  }
+  #alim-total b{ font-weight:600; }
+  #alim-progress-wrap{
+    height:8px; border-radius:6px; background: var(--surface-1); overflow:hidden; margin-bottom:16px;
+  }
+  #alim-progress-bar{
+    height:100%; background: var(--accent); border-radius:6px; width:0%; transition: width .2s;
   }
 </style>
 </head>
@@ -215,6 +260,24 @@
 
     <!-- ===== ONGLET CALENDRIER ===== -->
     <div id="panel-cal">
+
+      <div class="card">
+        <div id="cal-nav">
+          <i id="cal-prev">‹</i>
+          <span id="cal-month-label"></span>
+          <i id="cal-next">›</i>
+        </div>
+        <div id="cal-dow">
+          <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+        </div>
+        <div id="cal-grid"></div>
+        <div id="cal-legend">
+          <span><span class="dot dot-sport"></span>Sport</span>
+          <span><span class="dot dot-diet"></span>Diète suivie</span>
+          <span><span class="dot dot-diet-non"></span>Diète non suivie</span>
+        </div>
+      </div>
+
       <div class="card">
         <h2 id="daily-date-label">—</h2>
         <p class="card-sub">Sport</p>
@@ -238,24 +301,46 @@
       </div>
 
       <div class="card">
-        <div id="cal-nav">
-          <i id="cal-prev">‹</i>
-          <span id="cal-month-label"></span>
-          <i id="cal-next">›</i>
+        <h2>Alimentation</h2>
+        <p class="card-sub">Programme Cheef</p>
+        <div class="counter-row" id="alim-cheef-counters"></div>
+        <p class="card-sub">Compléments protéines</p>
+        <div class="counter-row" id="alim-supp-counters"></div>
+        <p class="card-sub">Saisie libre (jour non-Cheef)</p>
+        <input type="text" id="alim-libre-texte" placeholder="Ce que t'as mangé" style="margin-bottom:8px;">
+        <div class="libre-row">
+          <input type="number" inputmode="decimal" id="alim-libre-kcal" placeholder="kcal">
+          <input type="number" inputmode="decimal" id="alim-libre-prot" placeholder="protéines (g)">
         </div>
-        <div id="cal-dow">
-          <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
-        </div>
-        <div id="cal-grid"></div>
-        <div id="cal-legend">
-          <span><span class="dot dot-sport"></span>Sport</span>
-          <span><span class="dot dot-diet"></span>Diète suivie</span>
+        <div id="alim-total">— kcal · <b>—</b> g protéines / 110g</div>
+        <div id="alim-progress-wrap"><div id="alim-progress-bar"></div></div>
+        <input type="text" id="alim-note" class="note-input" placeholder="Note (optionnel)">
+        <div class="btn-row">
+          <button class="primary" id="alim-save">Enregistrer</button>
+          <button class="danger" id="alim-delete">Supprimer</button>
         </div>
       </div>
+
     </div>
 
     <!-- ===== ONGLET MESURES ===== -->
     <div id="panel-mes" style="display:none;">
+
+      <div class="card">
+        <div id="cal-nav-mes">
+          <i id="cal-prev-mes">‹</i>
+          <span id="cal-month-label-mes"></span>
+          <i id="cal-next-mes">›</i>
+        </div>
+        <div id="cal-dow-mes">
+          <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+        </div>
+        <div id="cal-grid-mes"></div>
+        <div id="cal-legend-mes">
+          <span><span class="dot dot-mes"></span>Mesure saisie</span>
+        </div>
+      </div>
+
       <div class="card">
         <input type="date" id="mes-date" style="margin-bottom:12px;max-width:170px;">
         <div id="entry-grid"></div>
@@ -292,21 +377,41 @@ const SPREADSHEET_ID = "17FMg0xN7g4r-HTX1ILP2Xw32CD06HDQjWLh-CVD2Q2c";
 const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 const SHEET_DAILY = "Daily";
 const SHEET_MES = "Mesures";
+const SHEET_ALIM = "Alim";
 const SPORT_TYPES = ["Cardio","Muscu","Vidéo YT","Autre"];
 const METRICS = ["Poids","Fat %","Biceps","Haut cuisse","Bas cuisse","Mollet","Fesses","Hanche/bas ventre","Taille","Seins","Cou"];
 const UNITS   = ["kg","%","cm","cm","cm","cm","cm","cm","cm","cm","cm"];
 const METRIC_COLORS = ["#378ADD","#D85A30","#1D9E75","#D4537E","#BA7517","#7F77DD","#639922","#534AB7","#993556","#0F6E56","#5F5E5A"];
 
-let tokenClient, accessToken = null;
+const ALIM_TARGET_PROT = 110;
+// clé = nom de colonne dans la sheet Alim (B..H)
+const ALIM_CHEEF = [
+  { key:"Barquettes",    label:"Barquette",         kcal:345, prot:20 },
+  { key:"Petit-déj",     label:"Petit-déj / encas", kcal:330, prot:8  },
+  { key:"Fruit",         label:"Fruit / compote",   kcal:75,  prot:1  },
+  { key:"Yaourt",        label:"Yaourt",            kcal:100, prot:6  },
+];
+const ALIM_SUPP = [
+  { key:"Poulet",        label:"Poulet 100g",         kcal:120, prot:21 },
+  { key:"Œuf",           label:"Œuf dur",              kcal:80,  prot:6  },
+  { key:"Fromage blanc", label:"Fromage blanc 100g",  kcal:48,  prot:8  },
+];
+const ALIM_ITEMS = [...ALIM_CHEEF, ...ALIM_SUPP];
+
+let tokenClient, accessToken = null, tokenExpiresAt = 0;
 let dailyRows = [];   // {rowIndex, date, sport:[], diet, note}
 let mesRows = [];     // {rowIndex, date, vals:[11], note}
+let alimRows = [];    // {rowIndex, date, counts:{}, libreTexte, libreKcal, libreProt, note}
 let dailyByDate = {};
 let mesByDate = {};
+let alimByDate = {};
 
-let calYear, calMonth; // 0-indexed month
+let calYear, calMonth; // 0-indexed month (onglet Calendrier)
+let mesCalYear, mesCalMonth; // (onglet Mesures)
 let selectedDailyDate = null;
 let selectedSports = [];
 let selectedDiet = null;
+let alimCounts = {}; // key -> count, pour la date sélectionnée (= selectedDailyDate)
 
 let selectedMetrics = [0];
 let selectedScale = 90;
@@ -332,6 +437,16 @@ const els = {
   calGrid: document.getElementById('cal-grid'),
   calPrev: document.getElementById('cal-prev'),
   calNext: document.getElementById('cal-next'),
+  alimCheefCounters: document.getElementById('alim-cheef-counters'),
+  alimSuppCounters: document.getElementById('alim-supp-counters'),
+  alimLibreTexte: document.getElementById('alim-libre-texte'),
+  alimLibreKcal: document.getElementById('alim-libre-kcal'),
+  alimLibreProt: document.getElementById('alim-libre-prot'),
+  alimTotal: document.getElementById('alim-total'),
+  alimProgressBar: document.getElementById('alim-progress-bar'),
+  alimNote: document.getElementById('alim-note'),
+  alimSave: document.getElementById('alim-save'),
+  alimDelete: document.getElementById('alim-delete'),
   mesDate: document.getElementById('mes-date'),
   entryGrid: document.getElementById('entry-grid'),
   mesNote: document.getElementById('mes-note'),
@@ -340,6 +455,10 @@ const els = {
   metricPicker: document.getElementById('metric-picker'),
   scalePicker: document.getElementById('scale-picker'),
   chartHint: document.getElementById('chart-hint'),
+  calMonthLabelMes: document.getElementById('cal-month-label-mes'),
+  calGridMes: document.getElementById('cal-grid-mes'),
+  calPrevMes: document.getElementById('cal-prev-mes'),
+  calNextMes: document.getElementById('cal-next-mes'),
 };
 
 if(CLIENT_ID.startsWith("REMPLACE") || SPREADSHEET_ID.startsWith("REMPLACE")){
@@ -352,18 +471,43 @@ window.addEventListener('load', () => {
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPES,
-      callback: (resp) => {
-        if(resp.error){ setStatus("Connexion refusée.", true); return; }
-        accessToken = resp.access_token;
-        onSignedIn();
-      }
+      callback: () => {}
     });
   }
 });
 
-els.signin.addEventListener('click', () => {
-  if(tokenClient) tokenClient.requestAccessToken({prompt:'consent'});
+/* ---------- Auth avec refresh silencieux ---------- */
+function requestToken(prompt){
+  return new Promise((resolve, reject) => {
+    if(!tokenClient){ reject(new Error('Client OAuth non initialisé.')); return; }
+    tokenClient.callback = (resp) => {
+      if(resp.error){ reject(new Error('Connexion refusée.')); return; }
+      accessToken = resp.access_token;
+      tokenExpiresAt = Date.now() + ((resp.expires_in || 3600) * 1000) - 60000;
+      resolve(accessToken);
+    };
+    tokenClient.requestAccessToken({ prompt });
+  });
+}
+
+els.signin.addEventListener('click', async () => {
+  try{
+    await requestToken('consent');
+    onSignedIn();
+  }catch(e){ setStatus(e.message, true); }
 });
+
+async function ensureFreshToken(){
+  if(!accessToken || Date.now() >= tokenExpiresAt){
+    try{
+      await requestToken('');
+    }catch(e){
+      els.app.style.display = 'none';
+      els.authBar.style.display = 'flex';
+      throw e;
+    }
+  }
+}
 
 function setStatus(msg, isError){
   els.status.textContent = msg || "";
@@ -376,11 +520,16 @@ function showSaved(){
   showSaved._t = setTimeout(()=> els.globalSaved.classList.remove('show'), 1400);
 }
 
-async function apiFetch(url, options={}){
+async function apiFetch(url, options={}, _retried){
+  await ensureFreshToken();
   const res = await fetch(url, {
     ...options,
     headers: { ...(options.headers||{}), Authorization: `Bearer ${accessToken}` }
   });
+  if(res.status === 401 && !_retried){
+    await requestToken('');
+    return apiFetch(url, options, true);
+  }
   if(!res.ok){
     const t = await res.text();
     throw new Error(`API ${res.status}: ${t}`);
@@ -394,9 +543,12 @@ function onSignedIn(){
   const today = new Date();
   calYear = today.getFullYear();
   calMonth = today.getMonth();
+  mesCalYear = today.getFullYear();
+  mesCalMonth = today.getMonth();
   els.mesDate.value = toISO(today);
   buildEntryGrid();
   buildMetricPicker();
+  buildAlimCounters();
   loadAll();
 }
 
@@ -414,9 +566,9 @@ const DOW_OFFSET = d => (d.getDay()+6)%7; // lundi=0
 async function loadAll(){
   setStatus("Chargement...");
   try{
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?ranges=${encodeURIComponent(SHEET_DAILY+'!A1:D')}&ranges=${encodeURIComponent(SHEET_MES+'!A1:M')}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?ranges=${encodeURIComponent(SHEET_DAILY+'!A1:D')}&ranges=${encodeURIComponent(SHEET_MES+'!A1:M')}&ranges=${encodeURIComponent(SHEET_ALIM+'!A1:N')}`;
     const data = await apiFetch(url);
-    const [dv, mv] = data.valueRanges.map(r => r.values || []);
+    const [dv, mv, av] = data.valueRanges.map(r => r.values || []);
 
     dailyRows = [];
     dailyByDate = {};
@@ -439,8 +591,25 @@ async function loadAll(){
       mesByDate[entry.date] = entry;
     }
 
+    alimRows = [];
+    alimByDate = {};
+    for(let i=1;i<av.length;i++){
+      const r = av[i];
+      if(!r || !r[0]) continue;
+      const counts = {};
+      ALIM_ITEMS.forEach((it,j) => { counts[it.key] = parseInt(r[j+1]) || 0; });
+      const entry = {
+        rowIndex:i+1, date:r[0], counts,
+        libreTexte: r[8]||"", libreKcal: r[9]||"", libreProt: r[10]||"",
+        note: r[13]||""
+      };
+      alimRows.push(entry);
+      alimByDate[entry.date] = entry;
+    }
+
     setStatus("");
     renderCalendar();
+    renderMesCalendar();
     selectDailyDate(toFR(new Date()));
     renderChart();
     loadMesFormForDate(els.mesDate.value);
@@ -459,7 +628,7 @@ els.tabMes.addEventListener('click', () => {
   els.tabMes.classList.add('active'); els.tabCal.classList.remove('active');
 });
 
-/* ---------- Calendrier ---------- */
+/* ---------- Calendrier (onglet Calendrier) ---------- */
 function renderCalendar(){
   els.calMonthLabel.textContent = `${MOIS[calMonth]} ${calYear}`;
   els.calGrid.innerHTML = "";
@@ -484,10 +653,14 @@ function renderCalendar(){
     num.textContent = day;
     cell.appendChild(num);
     const entry = dailyByDate[fr];
+    const dotsWrap = document.createElement('span');
+    dotsWrap.className = 'dots';
     if(entry){
-      if(entry.sport.length){ const dot=document.createElement('span'); dot.className='dot dot-sport'; cell.appendChild(dot); }
-      if(entry.diet === 'Oui' || entry.diet === 'Partiel'){ const dot=document.createElement('span'); dot.className='dot dot-diet'; cell.appendChild(dot); }
+      if(entry.sport.length){ const dot=document.createElement('span'); dot.className='dot dot-sport'; dotsWrap.appendChild(dot); }
+      if(entry.diet === 'Oui' || entry.diet === 'Partiel'){ const dot=document.createElement('span'); dot.className='dot dot-diet'; dotsWrap.appendChild(dot); }
+      if(entry.diet === 'Non'){ const dot=document.createElement('span'); dot.className='dot dot-diet-non'; dotsWrap.appendChild(dot); }
     }
+    cell.appendChild(dotsWrap);
     cell.addEventListener('click', () => selectDailyDate(fr));
     els.calGrid.appendChild(cell);
   }
@@ -516,6 +689,8 @@ function selectDailyDate(fr){
   renderSportChips();
   renderDietChips();
   renderCalendar();
+
+  loadAlimFormForDate(fr);
 }
 
 function renderSportChips(){
@@ -587,6 +762,165 @@ els.dailyDelete.addEventListener('click', async () => {
   }catch(e){ setStatus("Erreur : " + e.message, true); }
 });
 
+/* ---------- Alimentation ---------- */
+function buildAlimCounters(){
+  els.alimCheefCounters.innerHTML = "";
+  ALIM_CHEEF.forEach(it => els.alimCheefCounters.appendChild(buildCounterChip(it)));
+  els.alimSuppCounters.innerHTML = "";
+  ALIM_SUPP.forEach(it => els.alimSuppCounters.appendChild(buildCounterChip(it)));
+}
+
+function buildCounterChip(it){
+  const chip = document.createElement('div');
+  chip.className = 'counter-chip';
+  chip.dataset.key = it.key;
+
+  const label = document.createElement('span');
+  label.className = 'counter-label';
+  const labelText = document.createElement('span');
+  labelText.textContent = it.label;
+  label.appendChild(labelText);
+  const badge = document.createElement('span');
+  badge.className = 'counter-badge';
+  badge.style.display = 'none';
+  label.appendChild(badge);
+  label.addEventListener('click', () => {
+    alimCounts[it.key] = (alimCounts[it.key]||0) + 1;
+    renderAlimCounters();
+    renderAlimTotals();
+  });
+
+  const minus = document.createElement('span');
+  minus.className = 'counter-minus';
+  minus.textContent = '−';
+  minus.style.display = 'none';
+  minus.addEventListener('click', (e) => {
+    e.stopPropagation();
+    alimCounts[it.key] = Math.max(0, (alimCounts[it.key]||0) - 1);
+    renderAlimCounters();
+    renderAlimTotals();
+  });
+
+  chip.appendChild(label);
+  chip.appendChild(minus);
+  return chip;
+}
+
+function renderAlimCounters(){
+  [...els.alimCheefCounters.children, ...els.alimSuppCounters.children].forEach(chip => {
+    const key = chip.dataset.key;
+    const count = alimCounts[key] || 0;
+    const badge = chip.querySelector('.counter-badge');
+    const minus = chip.querySelector('.counter-minus');
+    chip.classList.toggle('has-count', count > 0);
+    if(count > 0){
+      badge.textContent = count;
+      badge.style.display = 'inline-block';
+      minus.style.display = 'flex';
+    } else {
+      badge.style.display = 'none';
+      minus.style.display = 'none';
+    }
+  });
+}
+
+function computeAlimTotals(){
+  let kcal = 0, prot = 0;
+  ALIM_ITEMS.forEach(it => {
+    const c = alimCounts[it.key] || 0;
+    kcal += c * it.kcal;
+    prot += c * it.prot;
+  });
+  const libreKcal = parseFloat(String(els.alimLibreKcal.value).replace(',','.')) || 0;
+  const libreProt = parseFloat(String(els.alimLibreProt.value).replace(',','.')) || 0;
+  kcal += libreKcal;
+  prot += libreProt;
+  return { kcal, prot };
+}
+
+function renderAlimTotals(){
+  const { kcal, prot } = computeAlimTotals();
+  els.alimTotal.innerHTML = `${Math.round(kcal)} kcal · <b>${Math.round(prot)}</b> g protéines / ${ALIM_TARGET_PROT}g`;
+  const pct = Math.min(100, (prot / ALIM_TARGET_PROT) * 100);
+  els.alimProgressBar.style.width = pct + '%';
+}
+
+[els.alimLibreKcal, els.alimLibreProt].forEach(input => {
+  input.addEventListener('input', renderAlimTotals);
+});
+
+function loadAlimFormForDate(fr){
+  const entry = alimByDate[fr];
+  alimCounts = {};
+  ALIM_ITEMS.forEach(it => { alimCounts[it.key] = entry ? (entry.counts[it.key] || 0) : 0; });
+  els.alimLibreTexte.value = entry ? entry.libreTexte : "";
+  els.alimLibreKcal.value = entry ? entry.libreKcal : "";
+  els.alimLibreProt.value = entry ? entry.libreProt : "";
+  els.alimNote.value = entry ? entry.note : "";
+  renderAlimCounters();
+  renderAlimTotals();
+}
+
+els.alimSave.addEventListener('click', async () => {
+  if(!selectedDailyDate) return;
+  setStatus("Enregistrement...");
+  const { kcal, prot } = computeAlimTotals();
+  const rowValues = [
+    selectedDailyDate,
+    ...ALIM_ITEMS.map(it => alimCounts[it.key] || 0),
+    els.alimLibreTexte.value,
+    els.alimLibreKcal.value,
+    els.alimLibreProt.value,
+    Math.round(kcal),
+    Math.round(prot),
+    els.alimNote.value
+  ];
+  try{
+    const existing = alimByDate[selectedDailyDate];
+    if(existing){
+      const range = `${SHEET_ALIM}!A${existing.rowIndex}:N${existing.rowIndex}`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+      await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[rowValues]}) });
+      existing.counts = {...alimCounts};
+      existing.libreTexte = els.alimLibreTexte.value;
+      existing.libreKcal = els.alimLibreKcal.value;
+      existing.libreProt = els.alimLibreProt.value;
+      existing.note = els.alimNote.value;
+    } else {
+      const range = `${SHEET_ALIM}!A1:N1`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+      const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
+      const updatedRange = res.updates.updatedRange;
+      const rowIndex = parseInt(updatedRange.match(/(\d+)(?::|$)/)[1]);
+      const entry = {
+        rowIndex, date:selectedDailyDate, counts:{...alimCounts},
+        libreTexte: els.alimLibreTexte.value, libreKcal: els.alimLibreKcal.value, libreProt: els.alimLibreProt.value,
+        note: els.alimNote.value
+      };
+      alimRows.push(entry);
+      alimByDate[selectedDailyDate] = entry;
+    }
+    setStatus(""); showSaved();
+  }catch(e){ setStatus("Erreur : " + e.message, true); }
+});
+
+els.alimDelete.addEventListener('click', async () => {
+  if(!selectedDailyDate) return;
+  const existing = alimByDate[selectedDailyDate];
+  if(!existing){ loadAlimFormForDate(selectedDailyDate); return; }
+  setStatus("Suppression...");
+  try{
+    const range = `${SHEET_ALIM}!A${existing.rowIndex}:N${existing.rowIndex}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+    const blank = Array(14).fill("");
+    await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[blank]}) });
+    delete alimByDate[selectedDailyDate];
+    alimRows = alimRows.filter(r => r !== existing);
+    loadAlimFormForDate(selectedDailyDate);
+    setStatus(""); showSaved();
+  }catch(e){ setStatus("Erreur : " + e.message, true); }
+});
+
 /* ---------- Mesures ---------- */
 function buildEntryGrid(){
   els.entryGrid.innerHTML = "";
@@ -654,8 +988,13 @@ function loadMesFormForDate(iso){
     document.getElementById('mes-in-'+i).value = entry && entry.vals[i]!==null ? entry.vals[i] : "";
   });
   els.mesNote.value = entry ? entry.note : "";
+  renderMesCalendar();
 }
-els.mesDate.addEventListener('change', () => loadMesFormForDate(els.mesDate.value));
+els.mesDate.addEventListener('change', () => {
+  const [y,m] = els.mesDate.value.split('-');
+  mesCalYear = parseInt(y); mesCalMonth = parseInt(m)-1;
+  loadMesFormForDate(els.mesDate.value);
+});
 
 els.mesSave.addEventListener('click', async () => {
   const fr = isoToFR(els.mesDate.value);
@@ -680,7 +1019,7 @@ els.mesSave.addEventListener('click', async () => {
       mesRows.push(entry);
       mesByDate[fr] = entry;
     }
-    setStatus(""); showSaved(); renderChart();
+    setStatus(""); showSaved(); renderChart(); renderMesCalendar();
   }catch(e){ setStatus("Erreur : " + e.message, true); }
 });
 
@@ -700,6 +1039,56 @@ els.mesDelete.addEventListener('click', async () => {
     renderChart();
     setStatus(""); showSaved();
   }catch(e){ setStatus("Erreur : " + e.message, true); }
+});
+
+/* ---------- Calendrier (onglet Mesures) ---------- */
+function renderMesCalendar(){
+  els.calMonthLabelMes.textContent = `${MOIS[mesCalMonth]} ${mesCalYear}`;
+  els.calGridMes.innerHTML = "";
+  const first = new Date(mesCalYear, mesCalMonth, 1);
+  const nbDays = new Date(mesCalYear, mesCalMonth+1, 0).getDate();
+  const offset = DOW_OFFSET(first);
+  const todayFR = toFR(new Date());
+  const selectedFR = els.mesDate.value ? isoToFR(els.mesDate.value) : null;
+
+  for(let i=0;i<offset;i++){
+    const empty = document.createElement('div');
+    empty.className = 'cal-day empty';
+    els.calGridMes.appendChild(empty);
+  }
+  for(let day=1; day<=nbDays; day++){
+    const d = new Date(mesCalYear, mesCalMonth, day);
+    const fr = toFR(d);
+    const cell = document.createElement('div');
+    cell.className = 'cal-day';
+    if(fr === todayFR) cell.classList.add('today');
+    if(fr === selectedFR) cell.classList.add('selected');
+    const num = document.createElement('span');
+    num.textContent = day;
+    cell.appendChild(num);
+    if(mesByDate[fr]){
+      const dotsWrap = document.createElement('span');
+      dotsWrap.className = 'dots';
+      const dot = document.createElement('span');
+      dot.className = 'dot dot-mes';
+      dotsWrap.appendChild(dot);
+      cell.appendChild(dotsWrap);
+    }
+    cell.addEventListener('click', () => {
+      els.mesDate.value = toISO(d);
+      loadMesFormForDate(els.mesDate.value);
+    });
+    els.calGridMes.appendChild(cell);
+  }
+}
+
+els.calPrevMes.addEventListener('click', () => {
+  mesCalMonth--; if(mesCalMonth<0){ mesCalMonth=11; mesCalYear--; }
+  renderMesCalendar();
+});
+els.calNextMes.addEventListener('click', () => {
+  mesCalMonth++; if(mesCalMonth>11){ mesCalMonth=0; mesCalYear++; }
+  renderMesCalendar();
 });
 
 let chartInstance = null;
