@@ -458,19 +458,22 @@ const ALIM_CHEEF = [
   { key:"Barquettes",    label:"Barquette",   kcal:345, prot:20 },
   { key:"Petit-déj",     label:"Petit-déj",   kcal:165, prot:3  },
   { key:"Encas",         label:"Encas",       kcal:165, prot:3  },
-  { key:"Fruit",         label:"Fruit / compote", kcal:75,  prot:1  },
-  { key:"Yaourt",        label:"Yaourt",      kcal:100, prot:6  },
+  { key:"Fruit",         label:"Fruit frais", kcal:75,  prot:1  },
+  { key:"Yaourt",        label:"Yaourt+miel",      kcal:78, prot:4.5  },
 ];
 const ALIM_SUPP = [
   { key:"Poulet",        label:"Poulet 10g",          kcal:19,  prot:2.3 },
   { key:"Œuf",           label:"Œuf dur",              kcal:80,  prot:6  },
   { key:"Fromage blanc", label:"Fromage blanc 100g",  kcal:69,  prot:8  },
   { key:"Barre prot",    label:"Barre prot 1 unité",  kcal:200, prot:20, legacy:true },
+  { key:"Compote",       label:"Compote",             kcal:52,  prot:0.3 },
 ];
 const ALIM_ITEMS = [...ALIM_CHEEF, ...ALIM_SUPP];
 // "Barre prot" (legacy:true) reste dans ALIM_ITEMS pour préserver la position des colonnes
 // dans la sheet Alim (compat avec les lignes existantes) mais n'est plus alimenté par
 // l'UI : depuis l'ajout du référentiel Produits, les barres sont gérées via alimBarres.
+// "Compote" ajouté en dernier élément pour préserver la position des colonnes existantes
+// (col K dans la sheet Alim, insérée manuellement avant les champs libres).
 
 let tokenClient, accessToken = null, tokenExpiresAt = 0;
 let dailyRows = [];   // {rowIndex, date, sport:[], diet, note}
