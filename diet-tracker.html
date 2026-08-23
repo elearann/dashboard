@@ -67,6 +67,7 @@
     #panel-cal{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }
     #panel-cal > .card:first-child{ grid-column: 1 / -1; }
     #alim-chart-card{ grid-column: 1 / -1; }
+    #kcal-chart-card{ grid-column: 1 / -1; }
     #panel-mes{ display:grid; grid-template-columns: 340px 1fr; gap:16px; align-items:start; }
     #panel-mes > .card:first-child{ grid-column: 1 / -1; }
   }
@@ -234,6 +235,27 @@
   #alim-progress-bar{
     height:100%; background: var(--accent); border-radius:6px; width:0%; transition: width .2s;
   }
+  #objectif-row{ display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+  #objectif-row label{ font-size:13px; color: var(--ink-soft); }
+  #objectif-kcal-input{ width:80px; height:32px; padding:4px 8px; text-align:center; }
+
+  /* ---------- Modal produits ---------- */
+  #barre-modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(28,29,27,0.45);
+    z-index:50; align-items:center; justify-content:center; padding:20px;
+  }
+  #barre-modal-overlay.show{ display:flex; }
+  #barre-modal{ width:100%; max-width:360px; max-height:80vh; overflow-y:auto; margin:0; }
+  .product-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 0; border-bottom:1px solid var(--line);
+  }
+  .product-row:last-of-type{ border-bottom:none; }
+  .product-name{ font-size:14px; color: var(--ink); font-weight:500; }
+  .product-macro{ font-size:12px; color: var(--ink-faint); }
+  .product-counter{ display:flex; align-items:center; gap:8px; }
+  .product-counter button{ width:28px; height:28px; padding:0; border-radius:6px; }
+  .product-counter span{ font-size:14px; min-width:16px; text-align:center; }
 </style>
 </head>
 <body>
@@ -296,12 +318,6 @@
           <span class="chip" data-sport="Vidéo YT">Vidéo YT</span>
           <span class="chip" data-sport="Autre">Autre</span>
         </div>
-        <p class="card-sub">Diète</p>
-        <div class="chip-row" id="diet-chips">
-          <span class="chip" data-diet="Oui">Oui</span>
-          <span class="chip" data-diet="Partiel">Partiel</span>
-          <span class="chip" data-diet="Non">Non</span>
-        </div>
         <input type="text" id="daily-note" class="note-input" placeholder="Note (optionnel)">
         <div class="btn-row">
           <button class="primary" id="daily-save">Enregistrer</button>
@@ -311,6 +327,10 @@
 
       <div class="card">
         <h2>Alimentation</h2>
+        <div id="objectif-row">
+          <label for="objectif-kcal-input">Objectif kcal/jour</label>
+          <input type="number" inputMode="numeric" id="objectif-kcal-input">
+        </div>
         <p class="card-sub">Programme Cheef</p>
         <div class="counter-row" id="alim-cheef-counters"></div>
         <p class="card-sub">Compléments protéines</p>
@@ -320,6 +340,12 @@
         <button type="button" id="alim-libre-add" style="margin-bottom:16px;">+ Ajouter un aliment</button>
         <div id="alim-total">— kcal · <b>—</b> g protéines / 110g</div>
         <div id="alim-progress-wrap"><div id="alim-progress-bar"></div></div>
+        <p class="card-sub">Diète <span id="diet-auto-tag" style="font-weight:400;color:var(--ink-faint);"></span></p>
+        <div class="chip-row" id="diet-chips">
+          <span class="chip" data-diet="Oui">Oui</span>
+          <span class="chip" data-diet="Partiel">Partiel</span>
+          <span class="chip" data-diet="Non">Non</span>
+        </div>
         <input type="text" id="alim-note" class="note-input" placeholder="Note (optionnel)">
         <div class="btn-row">
           <button class="primary" id="alim-save">Enregistrer</button>
@@ -338,6 +364,25 @@
         <p id="alim-chart-hint" style="font-size:11px;color:var(--ink-faint);margin:0;">Touche un point pour charger la date · ligne pointillée = objectif 110g</p>
       </div>
 
+      <div class="card" id="kcal-chart-card">
+        <h2>Suivi calories</h2>
+        <div id="kcal-scale-picker" style="display:flex;gap:6px;margin-bottom:14px;">
+          <span class="scale-chip kcal-scale-chip" data-scale="30">1 mois</span>
+          <span class="scale-chip kcal-scale-chip active" data-scale="90">3 mois</span>
+          <span class="scale-chip kcal-scale-chip" data-scale="0">Tout</span>
+        </div>
+        <div id="kcal-chart-wrap" style="position:relative;height:160px;margin-bottom:8px;"><canvas id="kcalChart"></canvas></div>
+        <p id="kcal-chart-hint" style="font-size:11px;color:var(--ink-faint);margin:0;">Touche un point pour charger la date · ligne pointillée = objectif kcal</p>
+      </div>
+
+    </div>
+
+    <div id="barre-modal-overlay">
+      <div class="card" id="barre-modal">
+        <h2>Choisir un produit</h2>
+        <div id="barre-modal-list"></div>
+        <button type="button" id="barre-modal-close" style="width:100%;margin-top:8px;">Fermer</button>
+      </div>
     </div>
 
     <!-- ===== ONGLET MESURES ===== -->
@@ -395,6 +440,8 @@ const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 const SHEET_DAILY = "Daily";
 const SHEET_MES = "Mesures";
 const SHEET_ALIM = "Alim";
+const SHEET_PRODUITS = "Produits";
+const SHEET_PARAM = "Param";
 const SPORT_TYPES = ["Cardio","Muscu","Marche","Vidéo YT","Autre"];
 const SPORT_ICON = { "Cardio":"fa-heart-pulse", "Muscu":"fa-dumbbell", "Marche":"fa-person-walking", "Vidéo YT":"fa-play", "Autre":"fa-asterisk" };
 const METRICS = ["Poids","Fat %","Biceps","Haut cuisse","Bas cuisse","Mollet","Fesses","Hanche/bas ventre","Taille","Seins","Cou"];
@@ -415,9 +462,12 @@ const ALIM_SUPP = [
   { key:"Poulet",        label:"Poulet 10g",          kcal:19,  prot:2.3 },
   { key:"Œuf",           label:"Œuf dur",              kcal:80,  prot:6  },
   { key:"Fromage blanc", label:"Fromage blanc 100g",  kcal:69,  prot:8  },
-  { key:"Barre prot",    label:"Barre prot 1 unité",  kcal:200, prot:20 },
+  { key:"Barre prot",    label:"Barre prot 1 unité",  kcal:200, prot:20, legacy:true },
 ];
 const ALIM_ITEMS = [...ALIM_CHEEF, ...ALIM_SUPP];
+// "Barre prot" (legacy:true) reste dans ALIM_ITEMS pour préserver la position des colonnes
+// dans la sheet Alim (compat avec les lignes existantes) mais n'est plus alimenté par
+// l'UI : depuis l'ajout du référentiel Produits, les barres sont gérées via alimBarres.
 
 let tokenClient, accessToken = null, tokenExpiresAt = 0;
 let dailyRows = [];   // {rowIndex, date, sport:[], diet, note}
@@ -434,6 +484,11 @@ let selectedSports = [];
 let selectedDiet = null;
 let alimCounts = {}; // key -> count, pour la date sélectionnée (= selectedDailyDate)
 let alimLibreItems = []; // [{texte, kcal, prot}], pour la date sélectionnée
+let alimBarres = {}; // productId (string) -> count, pour la date sélectionnée
+let PRODUITS = []; // [{id, nom, kcal, prot}], référentiel chargé depuis l'onglet Produits
+let objectifKcal = 1600;
+let objectifParamRowIndex = null; // ligne du Param sheet où écrire l'objectif
+let dietAutoMode = true; // true = diète déduite automatiquement des kcal du jour
 
 let selectedMetrics = [0];
 let selectedScale = 90;
@@ -452,6 +507,7 @@ const els = {
   dailyDateLabel: document.getElementById('daily-date-label'),
   sportChips: document.getElementById('sport-chips'),
   dietChips: document.getElementById('diet-chips'),
+  dietAutoTag: document.getElementById('diet-auto-tag'),
   dailyNote: document.getElementById('daily-note'),
   dailySave: document.getElementById('daily-save'),
   dailyDelete: document.getElementById('daily-delete'),
@@ -468,6 +524,10 @@ const els = {
   alimNote: document.getElementById('alim-note'),
   alimSave: document.getElementById('alim-save'),
   alimDelete: document.getElementById('alim-delete'),
+  objectifKcalInput: document.getElementById('objectif-kcal-input'),
+  barreModalOverlay: document.getElementById('barre-modal-overlay'),
+  barreModalList: document.getElementById('barre-modal-list'),
+  barreModalClose: document.getElementById('barre-modal-close'),
   mesDate: document.getElementById('mes-date'),
   entryGrid: document.getElementById('entry-grid'),
   mesNote: document.getElementById('mes-note'),
@@ -587,9 +647,27 @@ const DOW_OFFSET = d => (d.getDay()+6)%7; // lundi=0
 async function loadAll(){
   setStatus("Chargement...");
   try{
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?ranges=${encodeURIComponent(SHEET_DAILY+'!A1:D')}&ranges=${encodeURIComponent(SHEET_MES+'!A1:M')}&ranges=${encodeURIComponent(SHEET_ALIM+'!A1:P')}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?ranges=${encodeURIComponent(SHEET_DAILY+'!A1:D')}&ranges=${encodeURIComponent(SHEET_MES+'!A1:M')}&ranges=${encodeURIComponent(SHEET_ALIM+'!A1:Q')}&ranges=${encodeURIComponent(SHEET_PRODUITS+'!A1:D')}&ranges=${encodeURIComponent(SHEET_PARAM+'!A1:B')}`;
     const data = await apiFetch(url);
-    const [dv, mv, av] = data.valueRanges.map(r => r.values || []);
+    const [dv, mv, av, pv, prmv] = data.valueRanges.map(r => r.values || []);
+
+    PRODUITS = [];
+    for(let i=1;i<pv.length;i++){
+      const r = pv[i];
+      if(!r || !r[0]) continue;
+      PRODUITS.push({ id:String(r[0]), nom:r[1]||"", kcal:parseFloat(String(r[2]).replace(',','.'))||0, prot:parseFloat(String(r[3]).replace(',','.'))||0 });
+    }
+
+    objectifParamRowIndex = null;
+    for(let i=1;i<prmv.length;i++){
+      const r = prmv[i];
+      if(r && r[0] === 'ObjectifKcal'){
+        objectifParamRowIndex = i+1;
+        objectifKcal = parseFloat(String(r[1]).replace(',','.')) || 1600;
+        break;
+      }
+    }
+    els.objectifKcalInput.value = objectifKcal;
 
     dailyRows = [];
     dailyByDate = {};
@@ -619,8 +697,14 @@ async function loadAll(){
       if(!r || !r[0]) continue;
       const counts = {};
       ALIM_ITEMS.forEach((it,j) => { counts[it.key] = parseInt(r[j+1]) || 0; });
+      const barresCounts = {};
+      (r[ALIM_ITEMS.length+7]||"").split(';').forEach(pair => {
+        if(!pair) return;
+        const [id,qty] = pair.split(':');
+        if(id) barresCounts[id] = parseInt(qty) || 0;
+      });
       const entry = {
-        rowIndex:i+1, date:r[0], counts,
+        rowIndex:i+1, date:r[0], counts, barresCounts,
         libreTexte: r[ALIM_ITEMS.length+1]||"", libreKcal: r[ALIM_ITEMS.length+2]||"", libreProt: r[ALIM_ITEMS.length+3]||"",
         note: r[ALIM_ITEMS.length+6]||""
       };
@@ -634,6 +718,7 @@ async function loadAll(){
     selectDailyDate(toFR(new Date()));
     renderChart();
     renderAlimChart();
+    renderKcalChart();
     loadMesFormForDate(els.mesDate.value);
   }catch(e){
     setStatus("Erreur de chargement : " + e.message, true);
@@ -710,12 +795,13 @@ function selectDailyDate(fr){
   const entry = dailyByDate[fr];
   selectedSports = entry ? [...entry.sport] : [];
   selectedDiet = entry ? (entry.diet || null) : null;
+  dietAutoMode = !(entry && entry.diet); // pas de diète déjà enregistrée -> mode auto
   els.dailyNote.value = entry ? entry.note : "";
   renderSportChips();
   renderDietChips();
   renderCalendar();
 
-  loadAlimFormForDate(fr);
+  loadAlimFormForDate(fr); // recalcule la suggestion auto si dietAutoMode
 }
 
 function renderSportChips(){
@@ -734,46 +820,69 @@ function renderSportChips(){
 }
 function renderDietChips(){
   els.dietChips.innerHTML = "";
+  els.dietAutoTag.textContent = dietAutoMode ? "(auto)" : "";
   ["Oui","Partiel","Non"].forEach(v => {
     const chip = document.createElement('span');
     let cls = 'chip';
     if(selectedDiet === v) cls += v==='Oui' ? ' active-diet-oui' : v==='Partiel' ? ' active-diet-partiel' : ' active-diet-non';
     chip.className = cls;
     chip.textContent = v;
-    chip.addEventListener('click', () => { selectedDiet = (selectedDiet===v) ? null : v; renderDietChips(); });
+    chip.addEventListener('click', () => {
+      if(selectedDiet === v){
+        // on retire l'override -> retour au calcul auto
+        selectedDiet = null;
+        dietAutoMode = true;
+        renderAlimTotals();
+      } else {
+        selectedDiet = v;
+        dietAutoMode = false;
+        renderDietChips();
+      }
+    });
     els.dietChips.appendChild(chip);
   });
+}
+
+function computeSuggestedDiet(kcal){
+  if(!kcal) return null; // rien saisi -> pas de suggestion
+  if(kcal <= objectifKcal) return 'Oui';
+  if(kcal <= objectifKcal * 1.15) return 'Partiel';
+  return 'Non';
+}
+
+async function saveDaily(){
+  if(!selectedDailyDate) return;
+  const rowValues = [selectedDailyDate, selectedSports.join(", "), selectedDiet||"", els.dailyNote.value];
+  const existing = dailyByDate[selectedDailyDate];
+  if(existing){
+    const range = `${SHEET_DAILY}!A${existing.rowIndex}:D${existing.rowIndex}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+    await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[rowValues]}) });
+    existing.sport = [...selectedSports]; existing.diet = selectedDiet||""; existing.note = els.dailyNote.value;
+  } else {
+    const range = `${SHEET_DAILY}!A1:D1`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+    const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
+    const updatedRange = res.updates.updatedRange;
+    const rowIndex = parseInt(updatedRange.match(/(\d+)(?::|$)/)[1]);
+    const entry = { rowIndex, date:selectedDailyDate, sport:[...selectedSports], diet:selectedDiet||"", note: els.dailyNote.value };
+    dailyRows.push(entry);
+    dailyByDate[selectedDailyDate] = entry;
+  }
+  renderCalendar();
 }
 
 els.dailySave.addEventListener('click', async () => {
   if(!selectedDailyDate) return;
   setStatus("Enregistrement...");
-  const rowValues = [selectedDailyDate, selectedSports.join(", "), selectedDiet||"", els.dailyNote.value];
-  try{
-    const existing = dailyByDate[selectedDailyDate];
-    if(existing){
-      const range = `${SHEET_DAILY}!A${existing.rowIndex}:D${existing.rowIndex}`;
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-      await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[rowValues]}) });
-      existing.sport = [...selectedSports]; existing.diet = selectedDiet||""; existing.note = els.dailyNote.value;
-    } else {
-      const range = `${SHEET_DAILY}!A1:D1`;
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
-      const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
-      const updatedRange = res.updates.updatedRange;
-      const rowIndex = parseInt(updatedRange.match(/(\d+)(?::|$)/)[1]);
-      const entry = { rowIndex, date:selectedDailyDate, sport:[...selectedSports], diet:selectedDiet||"", note: els.dailyNote.value };
-      dailyRows.push(entry);
-      dailyByDate[selectedDailyDate] = entry;
-    }
-    setStatus(""); showSaved(); renderCalendar();
-  }catch(e){ setStatus("Erreur : " + e.message, true); }
+  try{ await saveDaily(); setStatus(""); showSaved(); }
+  catch(e){ setStatus("Erreur : " + e.message, true); }
 });
 
 els.dailyDelete.addEventListener('click', async () => {
   if(!selectedDailyDate) return;
   const existing = dailyByDate[selectedDailyDate];
-  if(!existing){ selectedSports=[]; selectedDiet=null; els.dailyNote.value=""; renderSportChips(); renderDietChips(); return; }
+  if(!existing){ selectedSports=[]; selectedDiet=null; dietAutoMode=true; els.dailyNote.value=""; renderSportChips(); renderAlimTotals(); return; }
   setStatus("Suppression...");
   try{
     const range = `${SHEET_DAILY}!A${existing.rowIndex}:D${existing.rowIndex}`;
@@ -781,8 +890,8 @@ els.dailyDelete.addEventListener('click', async () => {
     await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[["","","",""]]}) });
     delete dailyByDate[selectedDailyDate];
     dailyRows = dailyRows.filter(r => r !== existing);
-    selectedSports=[]; selectedDiet=null; els.dailyNote.value="";
-    renderSportChips(); renderDietChips(); renderCalendar();
+    selectedSports=[]; selectedDiet=null; dietAutoMode=true; els.dailyNote.value="";
+    renderSportChips(); renderAlimTotals(); renderCalendar();
     setStatus(""); showSaved();
   }catch(e){ setStatus("Erreur : " + e.message, true); }
 });
@@ -792,8 +901,97 @@ function buildAlimCounters(){
   els.alimCheefCounters.innerHTML = "";
   ALIM_CHEEF.forEach(it => els.alimCheefCounters.appendChild(buildCounterChip(it)));
   els.alimSuppCounters.innerHTML = "";
-  ALIM_SUPP.forEach(it => els.alimSuppCounters.appendChild(buildCounterChip(it)));
+  ALIM_SUPP.filter(it => !it.legacy).forEach(it => els.alimSuppCounters.appendChild(buildCounterChip(it)));
+  els.alimSuppCounters.appendChild(buildBarreTile());
 }
+
+/* ---------- Barre prot (référentiel Produits) ---------- */
+function totalBarres(){
+  return Object.values(alimBarres).reduce((s,c) => s + (c||0), 0);
+}
+
+function buildBarreTile(){
+  const chip = document.createElement('div');
+  chip.className = 'counter-chip';
+  chip.id = 'barre-tile';
+
+  const label = document.createElement('span');
+  label.className = 'counter-label';
+  const labelText = document.createElement('span');
+  labelText.textContent = 'Barre prot';
+  label.appendChild(labelText);
+  const badge = document.createElement('span');
+  badge.className = 'counter-badge';
+  badge.id = 'barre-tile-badge';
+  badge.style.display = 'none';
+  label.appendChild(badge);
+  label.addEventListener('click', openBarreModal);
+
+  chip.appendChild(label);
+  return chip;
+}
+
+function renderBarreTile(){
+  const chip = document.getElementById('barre-tile');
+  if(!chip) return;
+  const badge = document.getElementById('barre-tile-badge');
+  const count = totalBarres();
+  chip.classList.toggle('has-count', count > 0);
+  badge.style.display = count > 0 ? 'inline-block' : 'none';
+  badge.textContent = count;
+}
+
+function openBarreModal(){
+  els.barreModalList.innerHTML = "";
+  if(PRODUITS.length === 0){
+    const p = document.createElement('p');
+    p.className = 'card-sub';
+    p.textContent = "Aucun produit dans le référentiel.";
+    els.barreModalList.appendChild(p);
+  }
+  PRODUITS.forEach(prod => {
+    const row = document.createElement('div');
+    row.className = 'product-row';
+
+    const infoWrap = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'product-name';
+    name.textContent = prod.nom;
+    const macro = document.createElement('div');
+    macro.className = 'product-macro';
+    macro.textContent = `${prod.kcal} kcal · ${prod.prot}g prot`;
+    infoWrap.appendChild(name);
+    infoWrap.appendChild(macro);
+
+    const counter = document.createElement('div');
+    counter.className = 'product-counter';
+    const minus = document.createElement('button');
+    minus.type = 'button'; minus.textContent = '−';
+    const qty = document.createElement('span');
+    qty.textContent = alimBarres[prod.id] || 0;
+    const plus = document.createElement('button');
+    plus.type = 'button'; plus.textContent = '+';
+
+    minus.addEventListener('click', () => {
+      alimBarres[prod.id] = Math.max(0, (alimBarres[prod.id]||0) - 1);
+      qty.textContent = alimBarres[prod.id];
+      renderBarreTile(); renderAlimTotals();
+    });
+    plus.addEventListener('click', () => {
+      alimBarres[prod.id] = (alimBarres[prod.id]||0) + 1;
+      qty.textContent = alimBarres[prod.id];
+      renderBarreTile(); renderAlimTotals();
+    });
+
+    counter.appendChild(minus); counter.appendChild(qty); counter.appendChild(plus);
+    row.appendChild(infoWrap); row.appendChild(counter);
+    els.barreModalList.appendChild(row);
+  });
+  els.barreModalOverlay.classList.add('show');
+}
+function closeBarreModal(){ els.barreModalOverlay.classList.remove('show'); }
+els.barreModalClose.addEventListener('click', closeBarreModal);
+els.barreModalOverlay.addEventListener('click', (e) => { if(e.target === els.barreModalOverlay) closeBarreModal(); });
 
 function buildCounterChip(it){
   const chip = document.createElement('div');
@@ -849,6 +1047,16 @@ function renderAlimCounters(){
   });
 }
 
+function computeBarresTotals(barresObj){
+  let kcal = 0, prot = 0;
+  PRODUITS.forEach(p => {
+    const c = (barresObj && barresObj[p.id]) || 0;
+    kcal += c * p.kcal;
+    prot += c * p.prot;
+  });
+  return { kcal, prot };
+}
+
 function computeAlimTotals(){
   let kcal = 0, prot = 0;
   ALIM_ITEMS.forEach(it => {
@@ -860,6 +1068,8 @@ function computeAlimTotals(){
     kcal += parseFloat(String(it.kcal).replace(',','.')) || 0;
     prot += parseFloat(String(it.prot).replace(',','.')) || 0;
   });
+  const b = computeBarresTotals(alimBarres);
+  kcal += b.kcal; prot += b.prot;
   return { kcal, prot };
 }
 
@@ -868,6 +1078,11 @@ function renderAlimTotals(){
   els.alimTotal.innerHTML = `${Math.round(kcal)} kcal · <b>${Math.round(prot)}</b> g protéines / ${ALIM_TARGET_PROT}g`;
   const pct = Math.min(100, (prot / ALIM_TARGET_PROT) * 100);
   els.alimProgressBar.style.width = pct + '%';
+  renderBarreTile();
+  if(dietAutoMode){
+    selectedDiet = computeSuggestedDiet(Math.round(kcal));
+    renderDietChips();
+  }
 }
 
 function renderAlimLibreList(){
@@ -918,6 +1133,8 @@ function computeEntryAlimTotals(entry){
   });
   kcal += parseFloat(String(entry.libreKcal).replace(',','.')) || 0;
   prot += parseFloat(String(entry.libreProt).replace(',','.')) || 0;
+  const b = computeBarresTotals(entry.barresCounts);
+  kcal += b.kcal; prot += b.prot;
   return { kcal, prot };
 }
 
@@ -925,6 +1142,7 @@ function loadAlimFormForDate(fr){
   const entry = alimByDate[fr];
   alimCounts = {};
   ALIM_ITEMS.forEach(it => { alimCounts[it.key] = entry ? (entry.counts[it.key] || 0) : 0; });
+  alimBarres = entry ? {...entry.barresCounts} : {};
   // Note : la sheet ne stocke que le texte combiné + la somme kcal/prot du jour (pas le détail par aliment).
   // À la réouverture d'un jour déjà saisi, tout réapparaît sur une seule ligne éditable.
   alimLibreItems = (entry && entry.libreTexte) ? [{ texte: entry.libreTexte, kcal: entry.libreKcal, prot: entry.libreProt }] : [];
@@ -946,6 +1164,8 @@ els.alimSave.addEventListener('click', async () => {
   }).join(" ; ");
   const libreKcal = cleanItems.reduce((s,it)=> s + (parseFloat(String(it.kcal).replace(',','.'))||0), 0);
   const libreProt = cleanItems.reduce((s,it)=> s + (parseFloat(String(it.prot).replace(',','.'))||0), 0);
+  const barresCounts = {...alimBarres};
+  const barresDetail = Object.entries(barresCounts).filter(([id,q]) => q>0).map(([id,q]) => `${id}:${q}`).join(';');
   const rowValues = [
     selectedDailyDate,
     ...ALIM_ITEMS.map(it => alimCounts[it.key] || 0),
@@ -954,34 +1174,37 @@ els.alimSave.addEventListener('click', async () => {
     libreProt || "",
     Math.round(kcal),
     Math.round(prot),
-    els.alimNote.value
+    els.alimNote.value,
+    barresDetail
   ];
   try{
+    await saveDaily();
     const existing = alimByDate[selectedDailyDate];
     if(existing){
-      const range = `${SHEET_ALIM}!A${existing.rowIndex}:P${existing.rowIndex}`;
+      const range = `${SHEET_ALIM}!A${existing.rowIndex}:Q${existing.rowIndex}`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
       await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[rowValues]}) });
       existing.counts = {...alimCounts};
+      existing.barresCounts = barresCounts;
       existing.libreTexte = libreTexte;
       existing.libreKcal = libreKcal;
       existing.libreProt = libreProt;
       existing.note = els.alimNote.value;
     } else {
-      const range = `${SHEET_ALIM}!A1:P1`;
+      const range = `${SHEET_ALIM}!A1:Q1`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
       const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
       const updatedRange = res.updates.updatedRange;
       const rowIndex = parseInt(updatedRange.match(/(\d+)(?::|$)/)[1]);
       const entry = {
-        rowIndex, date:selectedDailyDate, counts:{...alimCounts},
+        rowIndex, date:selectedDailyDate, counts:{...alimCounts}, barresCounts,
         libreTexte, libreKcal, libreProt,
         note: els.alimNote.value
       };
       alimRows.push(entry);
       alimByDate[selectedDailyDate] = entry;
     }
-    setStatus(""); showSaved(); renderCalendar(); renderAlimChart();
+    setStatus(""); showSaved(); renderCalendar(); renderAlimChart(); renderKcalChart();
   }catch(e){ setStatus("Erreur : " + e.message, true); }
 });
 
@@ -991,16 +1214,39 @@ els.alimDelete.addEventListener('click', async () => {
   if(!existing){ loadAlimFormForDate(selectedDailyDate); return; }
   setStatus("Suppression...");
   try{
-    const range = `${SHEET_ALIM}!A${existing.rowIndex}:P${existing.rowIndex}`;
+    const range = `${SHEET_ALIM}!A${existing.rowIndex}:Q${existing.rowIndex}`;
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-    const blank = Array(16).fill("");
+    const blank = Array(17).fill("");
     await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[blank]}) });
     delete alimByDate[selectedDailyDate];
     alimRows = alimRows.filter(r => r !== existing);
     loadAlimFormForDate(selectedDailyDate);
-    renderCalendar(); renderAlimChart();
+    renderCalendar(); renderAlimChart(); renderKcalChart();
     setStatus(""); showSaved();
   }catch(e){ setStatus("Erreur : " + e.message, true); }
+});
+
+els.objectifKcalInput.addEventListener('change', async () => {
+  const val = parseFloat(els.objectifKcalInput.value);
+  if(!val || val <= 0){ els.objectifKcalInput.value = objectifKcal; return; }
+  const prevVal = objectifKcal;
+  objectifKcal = val;
+  setStatus("Enregistrement...");
+  try{
+    if(objectifParamRowIndex){
+      const range = `${SHEET_PARAM}!B${objectifParamRowIndex}`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+      await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[[val]]}) });
+    } else {
+      const range = `${SHEET_PARAM}!A1:B1`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+      const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[['ObjectifKcal', val]]}) });
+      const updatedRange = res.updates.updatedRange;
+      objectifParamRowIndex = parseInt(updatedRange.match(/(\d+)(?::|$)/)[1]);
+    }
+    setStatus(""); showSaved();
+    renderAlimTotals(); renderKcalChart();
+  }catch(e){ objectifKcal = prevVal; els.objectifKcalInput.value = prevVal; setStatus("Erreur : " + e.message, true); }
 });
 
 let alimScale = 90;
@@ -1041,6 +1287,69 @@ function renderAlimChart(){
         {
           label:'Objectif',
           data: labels.map(()=>ALIM_TARGET_PROT),
+          borderColor:'#b8862f',
+          borderDash:[5,4],
+          borderWidth:1.5,
+          pointRadius:0,
+          fill:false
+        }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:true, position:'top', labels:{boxWidth:10, font:{size:11}, color:'#6b6c68'} } },
+      scales:{
+        x:{ display:false },
+        y:{ ticks:{ font:{size:10}, color:'#6b6c68' }, grid:{ color:'rgba(0,0,0,0.06)' } }
+      },
+      onClick:(evt, elements) => {
+        if(elements.length){
+          const idx = elements[0].index;
+          selectDailyDate(sorted[idx].date);
+        }
+      }
+    }
+  });
+}
+
+let kcalScale = 90;
+document.querySelectorAll('.kcal-scale-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.kcal-scale-chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    kcalScale = parseInt(chip.dataset.scale);
+    renderKcalChart();
+  });
+});
+
+let kcalChartInstance = null;
+function renderKcalChart(){
+  let sorted = [...alimRows].sort((a,b) => frToISO(a.date).localeCompare(frToISO(b.date)));
+  if(kcalScale > 0){
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - kcalScale);
+    sorted = sorted.filter(r => new Date(frToISO(r.date)) >= cutoff);
+  }
+  const labels = sorted.map(r => frLabelShort(r.date));
+  const kcalData = sorted.map(r => Math.round(computeEntryAlimTotals(r).kcal));
+
+  const ctx = document.getElementById('kcalChart');
+  if(kcalChartInstance) kcalChartInstance.destroy();
+  kcalChartInstance = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {
+          label:'Kcal',
+          data: kcalData,
+          borderColor:'#2f5d54',
+          backgroundColor:'transparent',
+          tension:0.3, pointRadius:3, pointHoverRadius:6, borderWidth:2
+        },
+        {
+          label:'Objectif',
+          data: labels.map(()=>objectifKcal),
           borderColor:'#b8862f',
           borderDash:[5,4],
           borderWidth:1.5,
