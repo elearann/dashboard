@@ -458,8 +458,8 @@ const ALIM_CHEEF = [
   { key:"Barquettes",    label:"Barquette",   kcal:345, prot:20 },
   { key:"Petit-déj",     label:"Petit-déj",   kcal:165, prot:3  },
   { key:"Encas",         label:"Encas",       kcal:165, prot:3  },
-  { key:"Fruit",         label:"Fruit frais", kcal:75,  prot:1  },
-  { key:"Yaourt",        label:"Yaourt+miel",      kcal:78, prot:4.5  },
+  { key:"Fruit",         label:"Fruit", kcal:75,  prot:1  },
+  { key:"Yaourt",        label:"Yaourt",      kcal:78, prot:4.5  },
 ];
 const ALIM_SUPP = [
   { key:"Poulet",        label:"Poulet 10g",          kcal:19,  prot:2.3 },
@@ -907,8 +907,10 @@ els.dailyDelete.addEventListener('click', async () => {
 function buildAlimCounters(){
   els.alimCheefCounters.innerHTML = "";
   ALIM_CHEEF.forEach(it => els.alimCheefCounters.appendChild(buildCounterChip(it)));
+  const compoteItem = ALIM_SUPP.find(it => it.key === "Compote");
+  if (compoteItem) els.alimCheefCounters.appendChild(buildCounterChip(compoteItem));
   els.alimSuppCounters.innerHTML = "";
-  ALIM_SUPP.filter(it => !it.legacy).forEach(it => els.alimSuppCounters.appendChild(buildCounterChip(it)));
+  ALIM_SUPP.filter(it => !it.legacy && it.key !== "Compote").forEach(it => els.alimSuppCounters.appendChild(buildCounterChip(it)));
   els.alimSuppCounters.appendChild(buildBarreTile());
 }
 
