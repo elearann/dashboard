@@ -1031,6 +1031,7 @@ function buildCounterChip(it){
 
 function renderAlimCounters(){
   [...els.alimCheefCounters.children, ...els.alimSuppCounters.children].forEach(chip => {
+    if(!chip.dataset.key) return; // tuile spéciale (ex: Barre prot) gérée par renderBarreTile
     const key = chip.dataset.key;
     const count = alimCounts[key] || 0;
     const badge = chip.querySelector('.counter-badge');
