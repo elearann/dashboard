@@ -237,8 +237,8 @@
   #alim-progress-bar{
     height:100%; background: var(--accent); border-radius:6px; width:0%; transition: width .2s;
   }
-  #objectif-row{ display:flex; align-items:center; gap:8px; margin-bottom:16px; }
-  #objectif-row label{ font-size:13px; color: var(--ink-soft); }
+  .objectif-row{ display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+  .objectif-row label{ font-size:13px; color: var(--ink-soft); }
   #objectif-kcal-input{ width:80px; height:32px; padding:4px 8px; text-align:center; }
 
   /* ---------- Modal produits ---------- */
@@ -330,17 +330,18 @@
 
       <div class="card">
         <h2>Alimentation</h2>
-        <div id="objectif-row">
+        <div class="objectif-row">
           <label for="objectif-kcal-input">Objectif kcal/jour</label>
           <input type="number" inputMode="numeric" id="objectif-kcal-input">
         </div>
-        <p class="card-sub">Programme Cheef</p>
-        <div class="counter-row" id="alim-cheef-counters"></div>
-        <p class="card-sub">Compléments protéines</p>
-        <div class="counter-row" id="alim-supp-counters"></div>
-        <p class="card-sub">Saisie libre (jour non-Cheef)</p>
-        <div id="alim-libre-list"></div>
-        <button type="button" id="alim-libre-add" style="margin-bottom:16px;">+ Ajouter un aliment</button>
+        <div class="objectif-row">
+          <label for="alim-kcal-input">Kcal total (Yazio)</label>
+          <input type="number" inputMode="numeric" id="alim-kcal-input" placeholder="ex. 1450">
+        </div>
+        <div class="objectif-row">
+          <label for="alim-prot-input">Protéines totales (g)</label>
+          <input type="number" inputMode="numeric" id="alim-prot-input" placeholder="ex. 105">
+        </div>
         <div id="alim-total">— kcal · <b>—</b> g protéines / 110g</div>
         <div id="alim-progress-wrap"><div id="alim-progress-bar"></div></div>
         <p class="card-sub">Diète <span id="diet-auto-tag" style="font-weight:400;color:var(--ink-faint);"></span></p>
@@ -378,14 +379,6 @@
         <p id="kcal-chart-hint" style="font-size:11px;color:var(--ink-faint);margin:0;">Touche un point pour charger la date · ligne pointillée = objectif kcal</p>
       </div>
 
-    </div>
-
-    <div id="barre-modal-overlay">
-      <div class="card" id="barre-modal">
-        <h2>Choisir un produit</h2>
-        <div id="barre-modal-list"></div>
-        <button type="button" id="barre-modal-close" style="width:100%;margin-top:8px;">Fermer</button>
-      </div>
     </div>
 
     <!-- ===== ONGLET MESURES ===== -->
@@ -452,33 +445,16 @@ const UNITS   = ["kg","%","cm","cm","cm","cm","cm","cm","cm","cm","cm"];
 const METRIC_COLORS = ["#378ADD","#D85A30","#1D9E75","#D4537E","#BA7517","#7F77DD","#639922","#534AB7","#993556","#0F6E56","#5F5E5A"];
 
 const ALIM_TARGET_PROT = 110;
-// clé = nom de colonne dans la sheet Alim (B..I)
-// Petit-déj/Encas : moyenne des 7 produits sucrés Cheef (pancakes, cakes, brownie, gaufres) = ~165 kcal / ~3g prot chacun
-const ALIM_CHEEF = [
-  { key:"Barquettes",    label:"Barquette",   kcal:345, prot:20 },
-  { key:"Petit-déj",     label:"Petit-déj",   kcal:165, prot:3  },
-  { key:"Encas",         label:"Encas",       kcal:165, prot:3  },
-  { key:"Fruit",         label:"Fruit", kcal:75,  prot:1  },
-  { key:"Yaourt",        label:"Yaourt",      kcal:78, prot:4.5  },
-];
-const ALIM_SUPP = [
-  { key:"Poulet",        label:"Poulet 10g",          kcal:19,  prot:2.3 },
-  { key:"Œuf",           label:"Œuf dur",              kcal:80,  prot:6  },
-  { key:"Fromage blanc", label:"Fromage blanc 100g",  kcal:69,  prot:8  },
-  { key:"Barre prot",    label:"Barre prot 1 unité",  kcal:200, prot:20, legacy:true },
-  { key:"Compote",       label:"Compote",             kcal:52,  prot:0.3 },
-];
-const ALIM_ITEMS = [...ALIM_CHEEF, ...ALIM_SUPP];
-// "Barre prot" (legacy:true) reste dans ALIM_ITEMS pour préserver la position des colonnes
-// dans la sheet Alim (compat avec les lignes existantes) mais n'est plus alimenté par
-// l'UI : depuis l'ajout du référentiel Produits, les barres sont gérées via alimBarres.
-// "Compote" ajouté en dernier élément pour préserver la position des colonnes existantes
-// (col K dans la sheet Alim, insérée manuellement avant les champs libres).
+// L'onglet Alim garde 18 colonnes (A..R) pour compat avec l'historique, mais seules
+// Kcal total (O) et Prot totale (P) sont saisies désormais (kcal/prot Yazio, à la main).
+// Les colonnes B..K (ex-compteurs Cheef), L..N (ex-saisie libre) et R (ex-barres) sont
+// laissées vides sur toute nouvelle sauvegarde — le détail alimentaire vit dans Yazio.
+const ALIM_COL_COUNT = 18;
 
 let tokenClient, accessToken = null, tokenExpiresAt = 0;
 let dailyRows = [];   // {rowIndex, date, sport:[], diet, note}
 let mesRows = [];     // {rowIndex, date, vals:[11], note}
-let alimRows = [];    // {rowIndex, date, counts:{}, libreTexte, libreKcal, libreProt, note}
+let alimRows = [];    // {rowIndex, date, kcalTotal, protTotale, note}
 let dailyByDate = {};
 let mesByDate = {};
 let alimByDate = {};
@@ -488,10 +464,6 @@ let mesCalYear, mesCalMonth; // (onglet Mesures)
 let selectedDailyDate = null;
 let selectedSports = [];
 let selectedDiet = null;
-let alimCounts = {}; // key -> count, pour la date sélectionnée (= selectedDailyDate)
-let alimLibreItems = []; // [{texte, kcal, prot}], pour la date sélectionnée
-let alimBarres = {}; // productId (string) -> count, pour la date sélectionnée
-let PRODUITS = []; // [{id, nom, kcal, prot}], référentiel chargé depuis l'onglet Produits
 let objectifKcal = 1600;
 let objectifParamRowIndex = null; // ligne du Param sheet où écrire l'objectif
 let dietAutoMode = true; // true = diète déduite automatiquement des kcal du jour
@@ -521,19 +493,14 @@ const els = {
   calGrid: document.getElementById('cal-grid'),
   calPrev: document.getElementById('cal-prev'),
   calNext: document.getElementById('cal-next'),
-  alimCheefCounters: document.getElementById('alim-cheef-counters'),
-  alimSuppCounters: document.getElementById('alim-supp-counters'),
-  alimLibreList: document.getElementById('alim-libre-list'),
-  alimLibreAdd: document.getElementById('alim-libre-add'),
+  alimKcalInput: document.getElementById('alim-kcal-input'),
+  alimProtInput: document.getElementById('alim-prot-input'),
   alimTotal: document.getElementById('alim-total'),
   alimProgressBar: document.getElementById('alim-progress-bar'),
   alimNote: document.getElementById('alim-note'),
   alimSave: document.getElementById('alim-save'),
   alimDelete: document.getElementById('alim-delete'),
   objectifKcalInput: document.getElementById('objectif-kcal-input'),
-  barreModalOverlay: document.getElementById('barre-modal-overlay'),
-  barreModalList: document.getElementById('barre-modal-list'),
-  barreModalClose: document.getElementById('barre-modal-close'),
   mesDate: document.getElementById('mes-date'),
   entryGrid: document.getElementById('entry-grid'),
   mesNote: document.getElementById('mes-note'),
@@ -635,7 +602,6 @@ function onSignedIn(){
   els.mesDate.value = toISO(today);
   buildEntryGrid();
   buildMetricPicker();
-  buildAlimCounters();
   loadAll();
 }
 
@@ -701,18 +667,11 @@ async function loadAll(){
     for(let i=1;i<av.length;i++){
       const r = av[i];
       if(!r || !r[0]) continue;
-      const counts = {};
-      ALIM_ITEMS.forEach((it,j) => { counts[it.key] = parseInt(r[j+1]) || 0; });
-      const barresCounts = {};
-      (r[ALIM_ITEMS.length+7]||"").split(';').forEach(pair => {
-        if(!pair) return;
-        const [id,qty] = pair.split(':');
-        if(id) barresCounts[id] = parseInt(qty) || 0;
-      });
       const entry = {
-        rowIndex:i+1, date:r[0], counts, barresCounts,
-        libreTexte: r[ALIM_ITEMS.length+1]||"", libreKcal: r[ALIM_ITEMS.length+2]||"", libreProt: r[ALIM_ITEMS.length+3]||"",
-        note: r[ALIM_ITEMS.length+6]||""
+        rowIndex:i+1, date:r[0],
+        kcalTotal: parseFloat(String(r[14]).replace(',','.')) || 0,
+        protTotale: parseFloat(String(r[15]).replace(',','.')) || 0,
+        note: r[16]||""
       };
       alimRows.push(entry);
       alimByDate[entry.date] = entry;
@@ -904,289 +863,49 @@ els.dailyDelete.addEventListener('click', async () => {
 });
 
 /* ---------- Alimentation ---------- */
-function buildAlimCounters(){
-  els.alimCheefCounters.innerHTML = "";
-  ALIM_CHEEF.forEach(it => els.alimCheefCounters.appendChild(buildCounterChip(it)));
-  const compoteItem = ALIM_SUPP.find(it => it.key === "Compote");
-  if (compoteItem) els.alimCheefCounters.appendChild(buildCounterChip(compoteItem));
-  els.alimSuppCounters.innerHTML = "";
-  ALIM_SUPP.filter(it => !it.legacy && it.key !== "Compote").forEach(it => els.alimSuppCounters.appendChild(buildCounterChip(it)));
-  els.alimSuppCounters.appendChild(buildBarreTile());
-}
-
-/* ---------- Barre prot (référentiel Produits) ---------- */
-function totalBarres(){
-  return Object.values(alimBarres).reduce((s,c) => s + (c||0), 0);
-}
-
-function buildBarreTile(){
-  const chip = document.createElement('div');
-  chip.className = 'counter-chip';
-  chip.id = 'barre-tile';
-
-  const label = document.createElement('span');
-  label.className = 'counter-label';
-  const labelText = document.createElement('span');
-  labelText.textContent = 'Barre prot';
-  label.appendChild(labelText);
-  const badge = document.createElement('span');
-  badge.className = 'counter-badge';
-  badge.id = 'barre-tile-badge';
-  badge.style.display = 'none';
-  label.appendChild(badge);
-  label.addEventListener('click', openBarreModal);
-
-  chip.appendChild(label);
-  return chip;
-}
-
-function renderBarreTile(){
-  const chip = document.getElementById('barre-tile');
-  if(!chip) return;
-  const badge = document.getElementById('barre-tile-badge');
-  const count = totalBarres();
-  chip.classList.toggle('has-count', count > 0);
-  badge.style.display = count > 0 ? 'inline-block' : 'none';
-  badge.textContent = count;
-}
-
-function openBarreModal(){
-  els.barreModalList.innerHTML = "";
-  if(PRODUITS.length === 0){
-    const p = document.createElement('p');
-    p.className = 'card-sub';
-    p.textContent = "Aucun produit dans le référentiel.";
-    els.barreModalList.appendChild(p);
-  }
-  PRODUITS.forEach(prod => {
-    const row = document.createElement('div');
-    row.className = 'product-row';
-
-    const infoWrap = document.createElement('div');
-    const name = document.createElement('div');
-    name.className = 'product-name';
-    name.textContent = prod.nom;
-    const macro = document.createElement('div');
-    macro.className = 'product-macro';
-    macro.textContent = `${prod.kcal} kcal · ${prod.prot}g prot`;
-    infoWrap.appendChild(name);
-    infoWrap.appendChild(macro);
-
-    const counter = document.createElement('div');
-    counter.className = 'product-counter';
-    const minus = document.createElement('button');
-    minus.type = 'button'; minus.textContent = '−';
-    const qty = document.createElement('span');
-    qty.textContent = alimBarres[prod.id] || 0;
-    const plus = document.createElement('button');
-    plus.type = 'button'; plus.textContent = '+';
-
-    minus.addEventListener('click', () => {
-      alimBarres[prod.id] = Math.max(0, (alimBarres[prod.id]||0) - 1);
-      qty.textContent = alimBarres[prod.id];
-      renderBarreTile(); renderAlimTotals();
-    });
-    plus.addEventListener('click', () => {
-      alimBarres[prod.id] = (alimBarres[prod.id]||0) + 1;
-      qty.textContent = alimBarres[prod.id];
-      renderBarreTile(); renderAlimTotals();
-    });
-
-    counter.appendChild(minus); counter.appendChild(qty); counter.appendChild(plus);
-    row.appendChild(infoWrap); row.appendChild(counter);
-    els.barreModalList.appendChild(row);
-  });
-  els.barreModalOverlay.classList.add('show');
-}
-function closeBarreModal(){ els.barreModalOverlay.classList.remove('show'); }
-els.barreModalClose.addEventListener('click', closeBarreModal);
-els.barreModalOverlay.addEventListener('click', (e) => { if(e.target === els.barreModalOverlay) closeBarreModal(); });
-
-function buildCounterChip(it){
-  const chip = document.createElement('div');
-  chip.className = 'counter-chip';
-  chip.dataset.key = it.key;
-
-  const label = document.createElement('span');
-  label.className = 'counter-label';
-  const labelText = document.createElement('span');
-  labelText.textContent = it.label;
-  label.appendChild(labelText);
-  const badge = document.createElement('span');
-  badge.className = 'counter-badge';
-  badge.style.display = 'none';
-  label.appendChild(badge);
-  label.addEventListener('click', () => {
-    alimCounts[it.key] = (alimCounts[it.key]||0) + 1;
-    renderAlimCounters();
-    renderAlimTotals();
-  });
-
-  const minus = document.createElement('span');
-  minus.className = 'counter-minus';
-  minus.textContent = '−';
-  minus.style.display = 'none';
-  minus.addEventListener('click', (e) => {
-    e.stopPropagation();
-    alimCounts[it.key] = Math.max(0, (alimCounts[it.key]||0) - 1);
-    renderAlimCounters();
-    renderAlimTotals();
-  });
-
-  chip.appendChild(label);
-  chip.appendChild(minus);
-  return chip;
-}
-
-function renderAlimCounters(){
-  [...els.alimCheefCounters.children, ...els.alimSuppCounters.children].forEach(chip => {
-    if(!chip.dataset.key) return; // tuile spéciale (ex: Barre prot) gérée par renderBarreTile
-    const key = chip.dataset.key;
-    const count = alimCounts[key] || 0;
-    const badge = chip.querySelector('.counter-badge');
-    const minus = chip.querySelector('.counter-minus');
-    chip.classList.toggle('has-count', count > 0);
-    if(count > 0){
-      badge.textContent = count;
-      badge.style.display = 'inline-block';
-      minus.style.display = 'flex';
-    } else {
-      badge.style.display = 'none';
-      minus.style.display = 'none';
-    }
-  });
-}
-
-function computeBarresTotals(barresObj){
-  let kcal = 0, prot = 0;
-  PRODUITS.forEach(p => {
-    const c = (barresObj && barresObj[p.id]) || 0;
-    kcal += c * p.kcal;
-    prot += c * p.prot;
-  });
-  return { kcal, prot };
-}
-
-function computeAlimTotals(){
-  let kcal = 0, prot = 0;
-  ALIM_ITEMS.forEach(it => {
-    const c = alimCounts[it.key] || 0;
-    kcal += c * it.kcal;
-    prot += c * it.prot;
-  });
-  alimLibreItems.forEach(it => {
-    kcal += parseFloat(String(it.kcal).replace(',','.')) || 0;
-    prot += parseFloat(String(it.prot).replace(',','.')) || 0;
-  });
-  const b = computeBarresTotals(alimBarres);
-  kcal += b.kcal; prot += b.prot;
+function currentAlimInputs(){
+  const kcal = parseFloat(String(els.alimKcalInput.value).replace(',','.')) || 0;
+  const prot = parseFloat(String(els.alimProtInput.value).replace(',','.')) || 0;
   return { kcal, prot };
 }
 
 function renderAlimTotals(){
-  const { kcal, prot } = computeAlimTotals();
+  const { kcal, prot } = currentAlimInputs();
   els.alimTotal.innerHTML = `${Math.round(kcal)} kcal · <b>${Math.round(prot)}</b> g protéines / ${ALIM_TARGET_PROT}g`;
   const pct = Math.min(100, (prot / ALIM_TARGET_PROT) * 100);
   els.alimProgressBar.style.width = pct + '%';
-  renderBarreTile();
   if(dietAutoMode){
     selectedDiet = computeSuggestedDiet(Math.round(kcal));
     renderDietChips();
   }
 }
 
-function renderAlimLibreList(){
-  els.alimLibreList.innerHTML = "";
-  alimLibreItems.forEach((item, idx) => {
-    const row = document.createElement('div');
-    row.className = 'libre-row';
-    row.style.marginBottom = '8px';
-
-    const texte = document.createElement('input');
-    texte.type = 'text'; texte.placeholder = 'Aliment'; texte.value = item.texte || "";
-    texte.style.flex = '2';
-    texte.addEventListener('input', () => { item.texte = texte.value; });
-
-    const kcal = document.createElement('input');
-    kcal.type = 'number'; kcal.inputMode = 'decimal'; kcal.placeholder = 'kcal'; kcal.value = item.kcal || "";
-    kcal.addEventListener('input', () => { item.kcal = kcal.value; renderAlimTotals(); });
-
-    const prot = document.createElement('input');
-    prot.type = 'number'; prot.inputMode = 'decimal'; prot.placeholder = 'prot (g)'; prot.value = item.prot || "";
-    prot.addEventListener('input', () => { item.prot = prot.value; renderAlimTotals(); });
-
-    const del = document.createElement('button');
-    del.type = 'button'; del.textContent = '×'; del.title = 'Supprimer';
-    del.style.flex = '0 0 auto'; del.style.padding = '8px 12px';
-    del.addEventListener('click', () => {
-      alimLibreItems.splice(idx,1);
-      renderAlimLibreList();
-      renderAlimTotals();
-    });
-
-    row.appendChild(texte); row.appendChild(kcal); row.appendChild(prot); row.appendChild(del);
-    els.alimLibreList.appendChild(row);
-  });
-}
-
-els.alimLibreAdd.addEventListener('click', () => {
-  alimLibreItems.push({ texte:"", kcal:"", prot:"" });
-  renderAlimLibreList();
-});
-
 function computeEntryAlimTotals(entry){
-  let kcal = 0, prot = 0;
-  ALIM_ITEMS.forEach(it => {
-    const c = entry.counts[it.key] || 0;
-    kcal += c * it.kcal;
-    prot += c * it.prot;
-  });
-  kcal += parseFloat(String(entry.libreKcal).replace(',','.')) || 0;
-  prot += parseFloat(String(entry.libreProt).replace(',','.')) || 0;
-  const b = computeBarresTotals(entry.barresCounts);
-  kcal += b.kcal; prot += b.prot;
-  return { kcal, prot };
+  return { kcal: entry.kcalTotal || 0, prot: entry.protTotale || 0 };
 }
 
 function loadAlimFormForDate(fr){
   const entry = alimByDate[fr];
-  alimCounts = {};
-  ALIM_ITEMS.forEach(it => { alimCounts[it.key] = entry ? (entry.counts[it.key] || 0) : 0; });
-  alimBarres = entry ? {...entry.barresCounts} : {};
-  // Note : la sheet ne stocke que le texte combiné + la somme kcal/prot du jour (pas le détail par aliment).
-  // À la réouverture d'un jour déjà saisi, tout réapparaît sur une seule ligne éditable.
-  alimLibreItems = (entry && entry.libreTexte) ? [{ texte: entry.libreTexte, kcal: entry.libreKcal, prot: entry.libreProt }] : [];
+  els.alimKcalInput.value = entry && entry.kcalTotal ? entry.kcalTotal : "";
+  els.alimProtInput.value = entry && entry.protTotale ? entry.protTotale : "";
   els.alimNote.value = entry ? entry.note : "";
-  renderAlimCounters();
-  renderAlimLibreList();
   renderAlimTotals();
 }
+
+els.alimKcalInput.addEventListener('input', renderAlimTotals);
+els.alimProtInput.addEventListener('input', renderAlimTotals);
 
 els.alimSave.addEventListener('click', async () => {
   if(!selectedDailyDate) return;
   setStatus("Enregistrement...");
-  const { kcal, prot } = computeAlimTotals();
-  const cleanItems = alimLibreItems.filter(it => (it.texte||"").trim() !== "" || it.kcal || it.prot);
-  const libreTexte = cleanItems.map(it => {
-    const parts = [it.texte||"(aliment)"];
-    if(it.kcal || it.prot) parts.push(`${it.kcal||0}kcal/${it.prot||0}g`);
-    return parts.join(" — ");
-  }).join(" ; ");
-  const libreKcal = cleanItems.reduce((s,it)=> s + (parseFloat(String(it.kcal).replace(',','.'))||0), 0);
-  const libreProt = cleanItems.reduce((s,it)=> s + (parseFloat(String(it.prot).replace(',','.'))||0), 0);
-  const barresCounts = {...alimBarres};
-  const barresDetail = Object.entries(barresCounts).filter(([id,q]) => q>0).map(([id,q]) => `${id}:${q}`).join(';');
-  const rowValues = [
-    selectedDailyDate,
-    ...ALIM_ITEMS.map(it => alimCounts[it.key] || 0),
-    libreTexte,
-    libreKcal || "",
-    libreProt || "",
-    Math.round(kcal),
-    Math.round(prot),
-    els.alimNote.value,
-    barresDetail
-  ];
+  const { kcal, prot } = currentAlimInputs();
+  // Colonnes B..N et R laissées vides (ex-compteurs Cheef/saisie libre/barres, plus utilisés :
+  // le détail alimentaire vit dans Yazio). Seules Kcal total (O) et Prot totale (P) sont saisies.
+  const rowValues = Array(ALIM_COL_COUNT).fill("");
+  rowValues[0] = selectedDailyDate;
+  rowValues[14] = kcal ? Math.round(kcal) : "";
+  rowValues[15] = prot ? Math.round(prot) : "";
+  rowValues[16] = els.alimNote.value;
   try{
     await saveDaily();
     const existing = alimByDate[selectedDailyDate];
@@ -1194,11 +913,8 @@ els.alimSave.addEventListener('click', async () => {
       const range = `${SHEET_ALIM}!A${existing.rowIndex}:R${existing.rowIndex}`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
       await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[rowValues]}) });
-      existing.counts = {...alimCounts};
-      existing.barresCounts = barresCounts;
-      existing.libreTexte = libreTexte;
-      existing.libreKcal = libreKcal;
-      existing.libreProt = libreProt;
+      existing.kcalTotal = kcal ? Math.round(kcal) : 0;
+      existing.protTotale = prot ? Math.round(prot) : 0;
       existing.note = els.alimNote.value;
     } else {
       const range = `${SHEET_ALIM}!A1:R1`;
@@ -1207,8 +923,8 @@ els.alimSave.addEventListener('click', async () => {
       const updatedRange = res.updates.updatedRange;
       const rowIndex = parseInt(updatedRange.match(/(\d+)(?::|$)/)[1]);
       const entry = {
-        rowIndex, date:selectedDailyDate, counts:{...alimCounts}, barresCounts,
-        libreTexte, libreKcal, libreProt,
+        rowIndex, date:selectedDailyDate,
+        kcalTotal: kcal ? Math.round(kcal) : 0, protTotale: prot ? Math.round(prot) : 0,
         note: els.alimNote.value
       };
       alimRows.push(entry);
