@@ -22,7 +22,7 @@
   button.secondary{ background: transparent; color: var(--ink-soft); border:1px solid var(--line); }
   button.secondary:hover{ background: var(--line-soft); }
   button:hover{ opacity:0.92; } button:disabled{ opacity:0.5; cursor:default; }
-  input[type="number"]{ font-family:'Inter',sans-serif; padding:7px 10px; border:1px solid var(--line); border-radius:6px; background: var(--surface); color: var(--ink); }
+  input[type="number"], input[type="text"]{ font-family:'Inter',sans-serif; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background: var(--surface); color: var(--ink); width:100%; }
 
   #auth-bar{ display:flex; justify-content:center; padding:16px; gap:10px; }
   #status-line{ text-align:center; font-size:0.78rem; color: var(--ink-faint); min-height:18px; padding-bottom:6px; }
@@ -33,30 +33,39 @@
   header{ padding: 26px 24px 0; text-align:center; }
   header h1{ font-family:'Fraunces', serif; font-weight:600; font-size:1.5rem; margin:0 0 16px; letter-spacing:-0.01em; }
 
-  .shell{ max-width:1320px; margin:0 auto; padding:24px 24px 60px; }
-
-  .kpi-band{ display:flex; gap:16px; flex-wrap:wrap; margin-bottom:24px; }
-  .kpi-card{ flex:1; min-width:220px; background: var(--surface); border:1px solid var(--line); border-radius:10px; padding:14px 16px; box-shadow:0 1px 2px rgba(28,29,27,0.03); }
-  .kpi-card .label{ font-size:0.65rem; text-transform:uppercase; letter-spacing:0.05em; color: var(--ink-faint); margin-bottom:6px; }
-  .kpi-card .value{ font-family:'Fraunces', serif; font-weight:600; font-size:1.4rem; color: var(--accent); }
-  .kpi-sub span:not(:last-child)::after{ content:"·"; margin:0 10px; color: var(--line); }
-  .kpi-sub{ font-size:0.76rem; color: var(--ink-soft); }
-  .kpi-sub b{ color: var(--ink); font-weight:600; }
-
+  .shell{ max-width:1400px; margin:0 auto; padding:24px 24px 60px; }
   .toolbar{ display:flex; justify-content:flex-end; gap:8px; padding-bottom:14px; }
 
-  .group{ background: var(--group-bg); border:1px solid var(--line); border-radius:10px; margin-bottom:16px; overflow:hidden; }
-  .group-head{ display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid var(--line); background:#fcfcfb; flex-wrap:wrap; }
-  .group-head .title{ font-family:'Fraunces', serif; font-weight:600; font-size:1.02rem; flex-shrink:0; }
-  .group-head .sub-kpis{ display:flex; flex-wrap:wrap; font-size:0.74rem; color: var(--ink-soft); margin-left:auto; text-align:right; gap:0; }
-  .group-head .sub-kpis span{ margin-left:16px; white-space:nowrap; }
-  .group-head .sub-kpis b{ color: var(--ink); }
-
-  .table-scroll{ background: var(--surface); }
-  .cell-input.wide{ width:150px; }
-  .modal-error{ font-size:0.76rem; color: var(--danger); }
-
   #empty-state{ text-align:center; color: var(--ink-faint); font-size:0.85rem; padding:40px 20px; }
+
+  /* ---- Tableau comparatif ---- */
+  .compare-scroll{ overflow-x:auto; background: var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:0 1px 2px rgba(28,29,27,0.03); }
+  table.compare-table{ border-collapse:collapse; width:100%; min-width:600px; }
+  table.compare-table th, table.compare-table td{ padding:9px 14px; border-bottom:1px solid var(--line-soft); font-size:0.86rem; text-align:right; white-space:nowrap; }
+  table.compare-table thead th{ border-bottom:1px solid var(--line); vertical-align:top; padding-top:12px; padding-bottom:12px; background:#fcfcfb; }
+
+  .row-label-col{ text-align:left !important; font-size:0.78rem; color: var(--ink-soft); position:sticky; left:0; background: var(--surface); z-index:2; min-width:230px; border-right:1px solid var(--line); }
+  thead .row-label-col{ background:#fcfcfb; }
+
+  .section-row td{ padding-top:16px; padding-bottom:4px; border-bottom:none; }
+  .section-label{ font-family:'Fraunces', serif; font-weight:600; font-size:0.78rem; color: var(--accent); text-transform:uppercase; letter-spacing:0.04em; }
+
+  .scn-col{ min-width:190px; }
+  .scn-head{ display:flex; align-items:center; gap:6px; }
+  .scn-name{ font-family:'Fraunces', serif; font-weight:600; font-size:0.95rem; text-align:left; border:1px solid transparent; padding:2px 4px; }
+  .scn-name:hover, .scn-name:focus{ border-color: var(--line); background: var(--surface); }
+  .scn-year{ margin-top:4px; font-size:0.74rem; color: var(--ink-soft); text-align:left; width:70px; padding:2px 4px; }
+  .btn-delete{ background:transparent; color: var(--ink-faint); padding:2px 6px; font-size:0.85rem; border-radius:4px; flex-shrink:0; }
+  .btn-delete:hover{ background: var(--danger-soft); color: var(--danger); opacity:1; }
+  .col-error{ font-size:0.68rem; color: var(--danger); text-align:left; white-space:normal; margin-top:4px; max-width:180px; }
+
+  .cell-input{ text-align:right; }
+  .err-cell{ color: var(--ink-faint); }
+  .suffix{ font-size:0.72rem; color: var(--ink-faint); font-weight:400; }
+
+  .highlight-row td{ background: var(--accent-soft); font-weight:600; }
+  .highlight-row .row-label-col{ background: var(--accent-soft); }
+  .big-cell{ font-family:'Fraunces', serif; font-size:1.1rem; color: var(--accent); }
 </style>
 </head>
 <body>
@@ -75,7 +84,6 @@
     <button class="secondary" id="btn-refresh">↻ Rafraîchir</button>
     <button id="btn-add-scenario">+ Nouveau scénario</button>
   </div>
-  <div class="kpi-band" id="comparaison-band"></div>
   <div id="scenarios-wrap"></div>
 </div>
 
@@ -384,7 +392,7 @@ function parseParamsAndBareme(){
   });
 }
 
-/* ===================== RENDER ===================== */
+/* ===================== RENDER v2 : tableau comparatif ===================== */
 
 function scenarioFromRow(r){
   return {
@@ -395,122 +403,117 @@ function scenarioFromRow(r){
   };
 }
 
-function fmtEuro(v){
-  return Math.round(v).toLocaleString('fr-FR') + ' €';
-}
-function fmtPct(v){
-  return (v*100).toLocaleString('fr-FR', {maximumFractionDigits:1}) + ' %';
-}
+function fmtEuro(v){ return Math.round(v).toLocaleString('fr-FR') + ' €'; }
+function fmtPct(v){ return (v*100).toLocaleString('fr-FR', {maximumFractionDigits:1}) + ' %'; }
+
+// Définition des lignes du tableau : inputs (éditables) puis résultats calculés (lecture seule)
+const ROW_DEFS = [
+  { section: 'Hypothèses' },
+  { key:'CA', label:'CA', editable:true, col:4 },
+  { key:'charges', label:'Charges', editable:true, col:5 },
+  { key:'remNette', label:'Rémunération nette visée', editable:true, col:6 },
+  { key:'per154', label:'154 bis versé', editable:true, col:7 },
+  { key:'per163', label:'163 versé', editable:true, col:8 },
+  { key:'dividendes', label:'Dividendes', editable:true, col:9 },
+
+  { section: 'Société' },
+  { key:r=>r.remBrute, label:'Rémunération brute retrouvée' },
+  { key:r=>r.IS, label:'IS' },
+  { key:r=>r.beneficeNet, label:'Trésorerie restante (bénéfice net)' },
+
+  { section: 'Cotisations & 1GB' },
+  { key:r=>r.total, label:'Cotisations sociales' },
+  { key:r=>r.un_GB, label:'1GB' },
+
+  { section: 'Plafonds PER' },
+  { key:r=>r.strate15Utilisee, label:'154 bis — strate 15% utilisée', suffix:r=>' / '+fmtEuro(r.plafond154_15) },
+  { key:r=>r.strate10Utilisee, label:'154 bis — strate 10% utilisée', suffix:r=>' / '+fmtEuro(r.plafond154_10) },
+  { key:r=>r.per154Depasse ? '⚠️ dépassement' : '—', label:'Plafond 154 bis dépassé ?', raw:true },
+
+  { section: 'Fiscal' },
+  { key:r=>r.revenuImposable, label:'Revenu imposable' },
+  { key:r=>r.IR, label:'IR' },
+
+  { section: 'Résultat', highlight:true },
+  { key:r=>r.revenuNetEnPoche, label:'Revenu net en poche', big:true },
+  { key:r=>r.totalPrelevements, label:'Total cotisations + IS + IR' },
+  { key:r=>r.tauxPrelevementGlobal, label:'Taux de prélèvement global (/CA)', isPct:true },
+];
 
 function renderAll(){
-  const scenarios = DATA.scenarios
-    .map(scenarioFromRow)
-    .sort((a,b) => a.ordre - b.ordre);
+  const scenarios = DATA.scenarios.map(scenarioFromRow).sort((a,b) => a.ordre - b.ordre);
+  const wrap = document.getElementById('scenarios-wrap');
 
   if(scenarios.length === 0){
-    document.getElementById('comparaison-band').innerHTML = '';
-    document.getElementById('scenarios-wrap').innerHTML =
-      '<div id="empty-state">Aucun scénario. Ajoute une ligne dans l\'onglet "Scénarios" du Gsheet, puis rafraîchis.</div>';
+    wrap.innerHTML = '<div id="empty-state">Aucun scénario. Clique sur "+ Nouveau scénario" pour commencer.</div>';
     return;
   }
 
-  // Résultats calculés pour chaque scénario (avec gestion d'erreur si params/barème manquants)
   const results = scenarios.map(scn => {
     const params = PARAMS_BY_YEAR[scn.annee];
     const bareme = BAREME_BY_YEAR[scn.annee];
-    if(!params || !bareme){
-      return { scn, error: `Paramètres ou barème IR manquants pour ${scn.annee}` };
-    }
-    try{
-      return { scn, r: calculerScenario(scn, params, bareme) };
-    }catch(e){
-      return { scn, error: e.message };
-    }
+    if(!params || !bareme) return { scn, error: `Paramètres/barème manquants pour ${scn.annee}` };
+    try{ return { scn, r: calculerScenario(scn, params, bareme) }; }
+    catch(e){ return { scn, error: e.message }; }
   });
 
-  renderComparaisonBand(results);
-  renderScenarioCards(results);
-}
-
-function renderComparaisonBand(results){
-  const wrap = document.getElementById('comparaison-band');
-  wrap.innerHTML = results.map(({scn, r, error}) => {
-    if(error){
-      return `<div class="kpi-card"><div class="label">${scn.nom || scn.id}</div><div class="value neutral" style="color:var(--danger);font-size:0.85rem;">${error}</div></div>`;
-    }
-    return `
-      <div class="kpi-card">
-        <div class="label">${scn.nom || scn.id} — ${scn.annee}</div>
-        <div class="value">${fmtEuro(r.revenuNetEnPoche)}</div>
-        <div class="kpi-sub" style="padding:6px 0 0;">
-          <span>Prélèvements <b>${fmtEuro(r.totalPrelevements)}</b></span>
-          <span>Taux global <b>${fmtPct(r.tauxPrelevementGlobal)}</b></span>
-        </div>
-      </div>`;
-  }).join('');
-}
-
-function renderScenarioCards(results){
-  const wrap = document.getElementById('scenarios-wrap');
-  wrap.innerHTML = results.map(({scn, r, error}) => {
-    const alerte154 = r && r.per154Depasse
-      ? `<div class="modal-error" style="display:block;margin-top:6px;">⚠️ 154 bis versé (${fmtEuro(scn.per154)}) dépasse le plafond disponible (${fmtEuro(r.plafond154_15+r.plafond154_10)})</div>`
-      : '';
-    return `
-    <div class="group" data-row="${scn.rowIndex}">
-      <div class="group-head">
-        <div class="title">${scn.nom || scn.id}</div>
-        <div class="sub-kpis">
-          <span>Année <b>${scn.annee}</b></span>
-          ${r ? `<span>Rém. brute retrouvée <b>${fmtEuro(r.remBrute)}</b></span>` : ''}
-          ${r ? `<span>IS <b>${fmtEuro(r.IS)}</b></span>` : ''}
-          ${r ? `<span>Trésorerie restante <b>${fmtEuro(r.beneficeNet)}</b></span>` : ''}
-        </div>
+  let html = '<div class="compare-scroll"><table class="compare-table"><thead><tr><th class="row-label-col"></th>';
+  results.forEach(({scn, error}) => {
+    html += `<th class="scn-col">
+      <div class="scn-head">
+        <input class="scn-name" data-row="${scn.rowIndex}" data-col="1" value="${escapeAttr(scn.nom)}">
+        <button class="btn-delete" data-row="${scn.rowIndex}" title="Supprimer ce scénario">✕</button>
       </div>
-      <div class="table-scroll" style="padding:14px 16px;">
-        <div style="display:flex;flex-wrap:wrap;gap:14px;">
-          ${inputField(scn.rowIndex, 4, 'CA', scn.CA)}
-          ${inputField(scn.rowIndex, 5, 'Charges', scn.charges)}
-          ${inputField(scn.rowIndex, 6, 'Rémunération nette visée', scn.remNette)}
-          ${inputField(scn.rowIndex, 7, '154 bis versé', scn.per154)}
-          ${inputField(scn.rowIndex, 8, '163 versé', scn.per163)}
-          ${inputField(scn.rowIndex, 9, 'Dividendes', scn.dividendes)}
-        </div>
-        ${alerte154}
-        ${r ? `
-        <div style="margin-top:14px;font-size:0.78rem;color:var(--ink-soft);display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px 18px;">
-          <div>Cotisations sociales : <b style="color:var(--ink);">${fmtEuro(r.total)}</b></div>
-          <div>1GB : <b style="color:var(--ink);">${fmtEuro(r.un_GB)}</b></div>
-          <div>Strate 15% utilisée : <b style="color:var(--ink);">${fmtEuro(r.strate15Utilisee)}</b> / ${fmtEuro(r.plafond154_15)}</div>
-          <div>Strate 10% utilisée : <b style="color:var(--ink);">${fmtEuro(r.strate10Utilisee)}</b> / ${fmtEuro(r.plafond154_10)}</div>
-          <div>Revenu imposable : <b style="color:var(--ink);">${fmtEuro(r.revenuImposable)}</b></div>
-          <div>IR : <b style="color:var(--ink);">${fmtEuro(r.IR)}</b></div>
-        </div>` : ''}
-      </div>
-    </div>`;
-  }).join('');
-
-  wrap.querySelectorAll('input.cell-input').forEach(inp => {
-    inp.addEventListener('change', onFieldChange);
+      <input class="scn-year" type="number" data-row="${scn.rowIndex}" data-col="3" value="${scn.annee}">
+      ${error ? `<div class="col-error">⚠️ ${error}</div>` : ''}
+    </th>`;
   });
+  html += '</tr></thead><tbody>';
+
+  ROW_DEFS.forEach(def => {
+    if(def.section){
+      html += `<tr class="section-row"><td class="row-label-col section-label">${def.section}</td>`;
+      results.forEach(()=> html += '<td></td>');
+      html += '</tr>';
+      return;
+    }
+    html += `<tr class="${def.highlight ? 'highlight-row':''}"><td class="row-label-col">${def.label}</td>`;
+    results.forEach(({scn, r, error}) => {
+      if(error && !def.editable){ html += `<td class="err-cell">—</td>`; return; }
+      if(def.editable){
+        const val = scn[def.key];
+        html += `<td><input class="cell-input" type="number" step="1" data-row="${scn.rowIndex}" data-col="${def.col}" value="${val}"></td>`;
+      } else {
+        if(!r){ html += '<td class="err-cell">—</td>'; return; }
+        const raw = def.key(r);
+        let display;
+        if(def.raw) display = raw;
+        else if(def.isPct) display = fmtPct(raw);
+        else display = fmtEuro(raw);
+        if(def.suffix) display += ' <span class="suffix">' + def.suffix(r) + '</span>';
+        html += `<td class="${def.big ? 'big-cell':''}">${display}</td>`;
+      }
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+
+  wrap.querySelectorAll('input.cell-input').forEach(inp => inp.addEventListener('change', onFieldChange));
+  wrap.querySelectorAll('input.scn-name').forEach(inp => inp.addEventListener('change', onFieldChange));
+  wrap.querySelectorAll('input.scn-year').forEach(inp => inp.addEventListener('change', onFieldChange));
+  wrap.querySelectorAll('button.btn-delete').forEach(btn => btn.addEventListener('click', onDeleteScenario));
 }
 
-function inputField(rowIndex, colIdx, label, value){
-  return `
-    <label style="display:flex;flex-direction:column;gap:4px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-faint);">
-      ${label}
-      <input class="cell-input wide" type="number" step="1"
-        data-row="${rowIndex}" data-col="${colIdx}" value="${value}"
-        style="font-family:'Inter',sans-serif;font-size:0.9rem;color:var(--ink);text-transform:none;letter-spacing:normal;">
-    </label>`;
-}
+function escapeAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 
 async function onFieldChange(e){
   const rowIndex = parseInt(e.target.dataset.row, 10);
   const colIdx = parseInt(e.target.dataset.col, 10);
-  const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+  const isText = e.target.classList.contains('scn-name');
+  const value = isText ? e.target.value : (e.target.value === '' ? 0 : parseFloat(e.target.value));
 
-  // Mise à jour optimiste locale
   const row = DATA.scenarios.find(r => r.rowIndex === rowIndex);
   if(row){ row.cells[colIdx] = String(value); }
 
@@ -519,10 +522,30 @@ async function onFieldChange(e){
   try{
     await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ range, values: [[value]] }) });
     showSaved();
-  }catch(err){
-    showSaved("✕ échec : " + err.message, true);
-  }
-  renderAll(); // recalcule tout côté client, pas besoin de recharger le Gsheet
+  }catch(err){ showSaved("✕ échec : " + err.message, true); }
+  renderAll();
+}
+
+async function onDeleteScenario(e){
+  const rowIndex = parseInt(e.target.dataset.row, 10);
+  const row = DATA.scenarios.find(r => r.rowIndex === rowIndex);
+  const nom = row ? cell(row,1) : rowIndex;
+  if(!confirm(`Supprimer le scénario "${nom}" ? Cette action est irréversible.`)) return;
+
+  const sheetId = SHEET_IDS.scenarios;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`;
+  const body = {
+    requests: [{
+      deleteDimension: {
+        range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex }
+      }
+    }]
+  };
+  try{
+    await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    showSaved();
+    await loadAll();
+  }catch(err){ showSaved("✕ échec suppression : " + err.message, true); }
 }
 
 document.getElementById('btn-refresh').addEventListener('click', async () => {
@@ -532,18 +555,19 @@ document.getElementById('btn-refresh').addEventListener('click', async () => {
 });
 
 document.getElementById('btn-add-scenario').addEventListener('click', async () => {
+  const nom = prompt('Nom du scénario ?', 'Nouveau scénario');
+  if(nom === null) return; // annulé
   const anneeParDefaut = new Date().getFullYear();
   const nouvelId = 'scn_' + Date.now().toString(36);
-  const values = [[nouvelId, 'Nouveau scénario', DATA.scenarios.length + 1, anneeParDefaut, 0, 0, 0, 0, 0, 0, '']];
+  const ordre = DATA.scenarios.length + 1;
+  const values = [[nouvelId, nom || 'Nouveau scénario', ordre, anneeParDefaut, 0, 0, 0, 0, 0, 0, '']];
   const range = `${SHEETS.scenarios.name}!A:${colLetter(SHEETS.scenarios.width-1)}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
   try{
     await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ values }) });
     showSaved();
     await loadAll();
-  }catch(err){
-    showSaved("✕ échec : " + err.message, true);
-  }
+  }catch(err){ showSaved("✕ échec : " + err.message, true); }
 });
 
 </script>
