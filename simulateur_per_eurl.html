@@ -39,8 +39,8 @@
 
   #empty-state{ text-align:center; color: var(--ink-faint); font-size:0.85rem; padding:40px 20px; }
 
-  /* ---- Panneau comparaison A/B ---- */
-  .delta-panel{ background: var(--surface); border:1px solid var(--line); border-radius:10px; margin-bottom:16px; overflow:hidden; }
+  /* ---- Panneau comparaison A/B (maintenant sous le tableau) ---- */
+  .delta-panel{ background: var(--surface); border:1px solid var(--line); border-radius:10px; margin-top:16px; overflow:hidden; }
   .delta-panel-head{ display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); background:#fcfcfb; font-size:0.82rem; }
   .delta-title{ font-family:'Fraunces',serif; font-weight:600; margin-right:4px; }
   .delta-panel-head select{ padding:5px 8px; border:1px solid var(--line); border-radius:6px; font-family:'Inter',sans-serif; font-size:0.82rem; max-width:220px; width:auto; }
@@ -50,8 +50,8 @@
   .delta-pos{ color: var(--accent); font-weight:600; }
   .delta-neg{ color: var(--danger); font-weight:600; }
 
-  /* ---- Tableau comparatif scénarios ---- */
-  .compare-scroll{ overflow-x:auto; background: var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:0 1px 2px rgba(28,29,27,0.03); max-height:75vh; overflow-y:auto; }
+  /* ---- Tableau comparatif scénarios (scroll de page normal, plus de mini-fenêtre interne) ---- */
+  .compare-scroll{ overflow-x:auto; background: var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:0 1px 2px rgba(28,29,27,0.03); }
   table.compare-table{ border-collapse:collapse; table-layout:fixed; width:100%; }
   table.compare-table th, table.compare-table td{ padding:5px 8px; border-bottom:1px solid var(--line-soft); font-size:0.86rem; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; position:relative; }
   table.compare-table thead th{ border-bottom:1px solid var(--line); vertical-align:top; padding-top:10px; padding-bottom:10px; background:#fcfcfb; position:sticky; top:0; z-index:4; }
@@ -102,6 +102,8 @@
     <button id="btn-add-scenario">+ Nouveau scénario</button>
   </div>
 
+  <div id="scenarios-wrap"></div>
+
   <div class="delta-panel">
     <div class="delta-panel-head">
       <span class="delta-title">Comparer</span>
@@ -114,8 +116,6 @@
       <tbody id="delta-panel-body"></tbody>
     </table>
   </div>
-
-  <div id="scenarios-wrap"></div>
 </div>
 
 <div id="global-saved"></div>
@@ -215,14 +215,17 @@ function calculerScenario(scn, params, bareme) {
   const un_GB = remNette + cot.CSGCRDSNonDeductible;
 
   // ---- 4. Plafonds 154 bis ----
-  const plafond154_15 = Math.max(0.15 * (remBrute - PASS), 0);
-  const plafond154_10 = 0.10 * remBrute;
+  // Base = rémunération NETTE (confirmé Notion §8 : "15% × (120 000 − PASS)", 120 000 = le net cible),
+  // pas la brute. Correction du 26/08.
+  const plafond154_15 = Math.max(0.15 * (remNette - PASS), 0);
+  const plafond154_10 = 0.10 * remNette;
   const strate15Utilisee = Math.min(scn.per154, plafond154_15);
   const strate10Utilisee = Math.min(Math.max(scn.per154 - strate15Utilisee, 0), plafond154_10);
   const per154Depasse = scn.per154 > (plafond154_15 + plafond154_10);
 
   // ---- 5. Revenu imposable + IR + TMI ----
-  const revenuImposable = Math.max((un_GB - scn.per154) * 0.90 - scn.per163, 0);
+  // Base 1GB (validée Notion §7 contre avis d'imposition réel), + micro-foncier net (Notion §3/§6).
+  const revenuImposable = Math.max((un_GB - scn.per154) * 0.90 - scn.per163 + (scn.microFoncier || 0), 0);
   let IR = 0;
   bareme.forEach(t => {
     const haut = (t.borneHaute === null || t.borneHaute === undefined) ? Infinity : t.borneHaute;
@@ -301,7 +304,7 @@ let tokenClient, accessToken = null, tokenExpiresAt = 0;
 
 // Structure des 3 onglets : header en row 5 (row 4 pour Barème IR), data à partir de la ligne suivante.
 const SHEETS = {
-  scenarios: { name: "Scénarios",           headerRow: 5, width: 11 }, // A:K
+  scenarios: { name: "Scénarios",           headerRow: 5, width: 12 }, // A:L
   params:    { name: "Paramètres annuels",  headerRow: 5, width: 22 }, // A:V
   bareme:    { name: "Barème IR",           headerRow: 4, width: 4  }, // A:D
 };
@@ -480,6 +483,7 @@ function scenarioFromRow(r){
     id: cell(r,0), nom: cell(r,1), ordre: num(r,2), annee: parseInt(cell(r,3),10) || 0,
     CA: num(r,4), charges: num(r,5), remNette: num(r,6),
     per154: num(r,7), per163: num(r,8), dividendes: num(r,9), notes: cell(r,10),
+    microFoncier: num(r,11),
   };
 }
 
@@ -517,6 +521,7 @@ const INPUT_ROWS = [
   { key:'per154', label:'154 bis versé', col:7 },
   { key:'per163', label:'163 versé', col:8 },
   { key:'dividendes', label:'Dividendes', col:9 },
+  { key:'microFoncier', label:'Micro-foncier net', col:11 },
 ];
 
 let SCENARIOS_CACHE = []; // dernière liste de scénarios rendue, pour recalcul live sans re-render complet
@@ -691,7 +696,7 @@ async function onDuplicateScenario(e){
   if(!scn) return;
   const nouvelId = 'scn_' + Date.now().toString(36);
   const values = [[nouvelId, scn.nom + ' (copie)', SCENARIOS_CACHE.length + 1, scn.annee,
-                   scn.CA, scn.charges, scn.remNette, scn.per154, scn.per163, scn.dividendes, scn.notes || '']];
+                   scn.CA, scn.charges, scn.remNette, scn.per154, scn.per163, scn.dividendes, scn.notes || '', scn.microFoncier || 0]];
   const range = `${SHEETS.scenarios.name}!A:${colLetter(SHEETS.scenarios.width-1)}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
   try{
@@ -718,7 +723,7 @@ document.getElementById('btn-add-scenario').addEventListener('click', async () =
   const anneeParDefaut = new Date().getFullYear();
   const nouvelId = 'scn_' + Date.now().toString(36);
   const ordre = DATA.scenarios.length + 1;
-  const values = [[nouvelId, nom || 'Nouveau scénario', ordre, anneeParDefaut, 0, 0, 0, 0, 0, 0, '']];
+  const values = [[nouvelId, nom || 'Nouveau scénario', ordre, anneeParDefaut, 0, 0, 0, 0, 0, 0, '', 0]];
   const range = `${SHEETS.scenarios.name}!A:${colLetter(SHEETS.scenarios.width-1)}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
   try{
