@@ -22,7 +22,7 @@
   button.secondary{ background: transparent; color: var(--ink-soft); border:1px solid var(--line); }
   button.secondary:hover{ background: var(--line-soft); }
   button:hover{ opacity:0.92; } button:disabled{ opacity:0.5; cursor:default; }
-  input[type="number"], input[type="text"]{ font-family:'Inter',sans-serif; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background: var(--surface); color: var(--ink); width:100%; }
+  input[type="number"], input[type="text"]{ font-family:'Inter',sans-serif; padding:3px 6px; border:1px solid var(--line); border-radius:6px; background: var(--surface); color: var(--ink); width:100%; }
   input.input-alert{ border-color: var(--danger); background: var(--danger-soft); }
 
   #auth-bar{ display:flex; justify-content:center; padding:16px; gap:10px; }
@@ -39,22 +39,33 @@
 
   #empty-state{ text-align:center; color: var(--ink-faint); font-size:0.85rem; padding:40px 20px; }
 
-  /* ---- Tableau comparatif ---- */
-  .compare-scroll{ overflow-x:auto; background: var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:0 1px 2px rgba(28,29,27,0.03); }
+  /* ---- Panneau comparaison A/B ---- */
+  .delta-panel{ background: var(--surface); border:1px solid var(--line); border-radius:10px; margin-bottom:16px; overflow:hidden; }
+  .delta-panel-head{ display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); background:#fcfcfb; font-size:0.82rem; }
+  .delta-title{ font-family:'Fraunces',serif; font-weight:600; margin-right:4px; }
+  .delta-panel-head select{ padding:5px 8px; border:1px solid var(--line); border-radius:6px; font-family:'Inter',sans-serif; font-size:0.82rem; max-width:220px; width:auto; }
+  table.delta-table{ width:100%; border-collapse:collapse; }
+  table.delta-table th, table.delta-table td{ padding:5px 12px; font-size:0.8rem; text-align:right; border-bottom:1px solid var(--line-soft); }
+  table.delta-table thead th{ font-size:0.72rem; color:var(--ink-faint); text-transform:uppercase; }
+  .delta-pos{ color: var(--accent); font-weight:600; }
+  .delta-neg{ color: var(--danger); font-weight:600; }
+
+  /* ---- Tableau comparatif scénarios ---- */
+  .compare-scroll{ overflow-x:auto; background: var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:0 1px 2px rgba(28,29,27,0.03); max-height:75vh; overflow-y:auto; }
   table.compare-table{ border-collapse:collapse; table-layout:fixed; width:100%; }
-  table.compare-table th, table.compare-table td{ padding:9px 14px; border-bottom:1px solid var(--line-soft); font-size:0.86rem; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; position:relative; }
-  table.compare-table thead th{ border-bottom:1px solid var(--line); vertical-align:top; padding-top:12px; padding-bottom:12px; background:#fcfcfb; }
+  table.compare-table th, table.compare-table td{ padding:5px 8px; border-bottom:1px solid var(--line-soft); font-size:0.86rem; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; position:relative; }
+  table.compare-table thead th{ border-bottom:1px solid var(--line); vertical-align:top; padding-top:10px; padding-bottom:10px; background:#fcfcfb; position:sticky; top:0; z-index:4; }
 
-  .row-label-col{ text-align:left !important; font-size:0.78rem; color: var(--ink-soft); position:sticky; left:0; background: var(--surface); z-index:2; border-right:1px solid var(--line); white-space:normal !important; }
-  thead .row-label-col{ background:#fcfcfb; }
+  .row-label-col{ text-align:left !important; font-size:0.78rem; color: var(--ink-soft); position:sticky; left:0; background: var(--surface); z-index:2; border-right:1px solid var(--line); white-space:normal !important; padding-left:10px !important; }
+  thead .row-label-col{ background:#fcfcfb; position:sticky; top:0; left:0; z-index:5; }
 
-  .section-row td{ padding-top:16px; padding-bottom:4px; border-bottom:none; }
+  .section-row td{ padding-top:10px; padding-bottom:3px; border-bottom:none; }
   .section-label{ font-family:'Fraunces', serif; font-weight:600; font-size:0.78rem; color: var(--accent); text-transform:uppercase; letter-spacing:0.04em; }
 
-  .scn-head{ display:flex; align-items:center; gap:4px; }
+  .scn-head{ display:flex; align-items:center; gap:2px; }
   .scn-name{ font-family:'Fraunces', serif; font-weight:600; font-size:0.92rem; text-align:left; border:1px solid transparent; padding:2px 4px; min-width:0; }
   .scn-name:hover, .scn-name:focus{ border-color: var(--line); background: var(--surface); }
-  .scn-year{ margin-top:4px; font-size:0.74rem; color: var(--ink-soft); text-align:left; width:64px; padding:2px 4px; }
+  .scn-year{ margin-top:4px; font-size:0.68rem; color: var(--ink-soft); text-align:left; width:64px; padding:2px 4px; }
   .btn-icon{ background:transparent; color: var(--ink-faint); padding:2px 5px; font-size:0.82rem; border-radius:4px; flex-shrink:0; line-height:1; }
   .btn-icon:hover{ opacity:1; }
   .btn-delete:hover{ background: var(--danger-soft); color: var(--danger); }
@@ -69,8 +80,7 @@
   .highlight-row .row-label-col{ background: var(--accent-soft); }
   .big-cell{ font-family:'Fraunces', serif; font-size:1.1rem; color: var(--accent); }
 
-  /* Poignée de redimensionnement de colonne */
-  .resizer{ position:absolute; top:0; right:0; width:6px; height:100%; cursor:col-resize; user-select:none; z-index:3; }
+  .resizer{ position:absolute; top:0; right:0; width:6px; height:100%; cursor:col-resize; user-select:none; z-index:6; }
   .resizer:hover{ background: var(--accent-soft); }
 </style>
 </head>
@@ -87,9 +97,24 @@
 
 <div class="shell" id="shell" style="display:none;">
   <div class="toolbar">
+    <button class="secondary" id="btn-reset-widths">↺ Largeurs par défaut</button>
     <button class="secondary" id="btn-refresh">↻ Rafraîchir</button>
     <button id="btn-add-scenario">+ Nouveau scénario</button>
   </div>
+
+  <div class="delta-panel">
+    <div class="delta-panel-head">
+      <span class="delta-title">Comparer</span>
+      <select id="compare-select-a"></select>
+      <span>vs</span>
+      <select id="compare-select-b"></select>
+    </div>
+    <table class="delta-table">
+      <thead><tr><th class="row-label-col"></th><th>A</th><th>B</th><th>Δ (B−A)</th></tr></thead>
+      <tbody id="delta-panel-body"></tbody>
+    </table>
+  </div>
+
   <div id="scenarios-wrap"></div>
 </div>
 
@@ -161,33 +186,42 @@ function resoudreBrutDepuisNette(netteVisee, dividendes, params) {
   return (lo + hi) / 2;
 }
 
-// scn: { CA, charges, remNette, per154, per163, dividendes }
+// scn: { CA, charges, remNette, per154, per163, dividendes } — dividendes = montant BRUT total versé
 function calculerScenario(scn, params, bareme) {
   const PASS = params.pass;
+  const dividendesBruts = scn.dividendes || 0;
 
-  // ---- 1. Résolution brut <- nette ----
-  const remBrute = resoudreBrutDepuisNette(scn.remNette, scn.dividendes, params);
-  const cot = cotisationsSocialesTNS(remBrute, scn.dividendes, params);
-  const remNette = remBrute - cot.total; // recalculée, doit coller à scn.remNette à l'arrondi près
+  // Seule la fraction >10% du capital social entre dans l'assiette de cotisations — on la
+  // calcule d'abord (indépendamment de remBrute, elle ne dépend que du seuil capital social).
+  const seuil10 = 0.10 * CAPITAL_SOCIAL;
+  const fractionCotisationsDividendes = Math.max(dividendesBruts - seuil10, 0);
+
+  // ---- 1. Résolution brut <- nette (l'assiette inclut la fraction dividendes >10%) ----
+  const remBrute = resoudreBrutDepuisNette(scn.remNette, fractionCotisationsDividendes, params);
+  const cot = cotisationsSocialesTNS(remBrute, fractionCotisationsDividendes, params);
+  const remNette = remBrute - cot.total;
+
+  // ---- 1bis. Dividendes (mode PFU, sans prise en charge société — cf conversation) ----
+  const div = calculDividendes(dividendesBruts, remBrute, params);
 
   // ---- 2. Société ----
-  const resultatAvantIS = scn.CA - scn.charges - remBrute - scn.per154;
+  const resultatAvantIS = scn.CA - scn.charges - remBrute;
   const isReduit = Math.min(Math.max(resultatAvantIS, 0), params.seuilISReduit) * params.tauxISReduit;
   const isNormal = Math.max(resultatAvantIS - params.seuilISReduit, 0) * params.tauxISNormal;
   const IS = isReduit + isNormal;
   const beneficeNet = resultatAvantIS - IS;
 
   // ---- 3. 1GB ----
-  const un_GB = remNette + cot.CSGCRDSNonDeductible; // prévoyance non-déductible non modélisée (pas de champ dédié)
+  const un_GB = remNette + cot.CSGCRDSNonDeductible;
 
-  // ---- 4. Plafonds 154 bis (calcul auto, répartition strate 15 puis 10) ----
+  // ---- 4. Plafonds 154 bis ----
   const plafond154_15 = Math.max(0.15 * (remBrute - PASS), 0);
   const plafond154_10 = 0.10 * remBrute;
   const strate15Utilisee = Math.min(scn.per154, plafond154_15);
   const strate10Utilisee = Math.min(Math.max(scn.per154 - strate15Utilisee, 0), plafond154_10);
   const per154Depasse = scn.per154 > (plafond154_15 + plafond154_10);
 
-  // ---- 5. Revenu imposable + IR ----
+  // ---- 5. Revenu imposable + IR + TMI ----
   const revenuImposable = Math.max((un_GB - scn.per154) * 0.90 - scn.per163, 0);
   let IR = 0;
   bareme.forEach(t => {
@@ -195,15 +229,12 @@ function calculerScenario(scn, params, bareme) {
     const assietteTranche = Math.min(revenuImposable, haut) - t.borneBasse;
     if (assietteTranche > 0) IR += assietteTranche * t.taux;
   });
+  const TMI = trouverTMI(revenuImposable, bareme);
 
   // ---- 6. Résultats finaux ----
-  // Cash en poche = nette - 154bis (déjà sorti via société) - 163 (viré perso) - IR
-  // Mais remNette telle que définie ici est déjà nette de cotisations ET inclut le 154bis
-  // (puisque brut a été résolu pour donner cette nette-là, 154bis compris dedans).
-  // Donc : cash réellement disponible après PER = remNette - scn.per154 - scn.per163
   const cashApresPER = remNette - scn.per154 - scn.per163;
-  const revenuNetEnPoche = cashApresPER - IR;
-  const totalPrelevements = cot.total + IS + IR;
+  const revenuNetEnPoche = cashApresPER - IR + div.netDividendes;
+  const totalPrelevements = cot.total + IS + IR + div.totalPrelevementsDividendes;
   const tauxPrelevementGlobal = scn.CA > 0 ? totalPrelevements / scn.CA : 0;
 
   return {
@@ -212,9 +243,52 @@ function calculerScenario(scn, params, bareme) {
     ...cot,
     un_GB,
     plafond154_15, plafond154_10, strate15Utilisee, strate10Utilisee, per154Depasse,
-    revenuImposable, IR,
+    revenuImposable, IR, TMI,
+    ...div,
     cashApresPER, revenuNetEnPoche, totalPrelevements, tauxPrelevementGlobal,
   };
+}
+
+/* ===================== MODULE DIVIDENDES (mode PFU) ===================== */
+// Hypothèse : capital social 1000€ (à ajuster ici si augmentation de capital un jour).
+const CAPITAL_SOCIAL = 1000;
+
+// Ne modélise PAS la "prise en charge des cotisations par la société" (mécanisme réel mais
+// non sourcé dans les règles officielles modele-ti — cf conversation). Dividendes versés et
+// taxés normalement : le dirigeant paie lui-même PS + cotisations + PFU sur ses dividendes reçus.
+function calculDividendes(dividendesBruts, remBrute, params) {
+  const seuil10 = 0.10 * CAPITAL_SOCIAL;
+  const fractionPS = Math.min(dividendesBruts, seuil10);
+  const fractionCotisations = Math.max(dividendesBruts - seuil10, 0);
+
+  // Prélèvements sociaux sur la fraction ≤10% (mode PFU, taux 2026)
+  const CRDS = fractionPS * 0.005;
+  const CSGNonDeductible = fractionPS * 0.106; // PFU, taux 2026 (avant 2026 : 9.2%)
+  const prelevementSolidarite = fractionPS * 0.075;
+  const totalPS = CRDS + CSGNonDeductible + prelevementSolidarite; // = 18.6%
+
+  // Cotisations sociales marginales générées par la fraction >10% (elle s'ajoute à l'assiette
+  // globale avec la rémunération -> on calcule par différence pour isoler sa part).
+  const cotAvec = cotisationsSocialesTNS(remBrute, fractionCotisations, params).total;
+  const cotSans = cotisationsSocialesTNS(remBrute, 0, params).total;
+  const cotisationsSurDividendes = cotAvec - cotSans;
+
+  // PFU — part IR (12,8%), assise sur le montant BRUT total (règle confirmée modele-ti)
+  const PFU_IR = dividendesBruts * 0.128;
+
+  const netDividendes = dividendesBruts - totalPS - cotisationsSurDividendes - PFU_IR;
+  const totalPrelevementsDividendes = totalPS + cotisationsSurDividendes + PFU_IR;
+
+  return { fractionPS, fractionCotisations, totalPS, cotisationsSurDividendes, PFU_IR, netDividendes, totalPrelevementsDividendes };
+}
+
+// Tranche marginale d'imposition (TMI) : dernière tranche du barème atteinte par le revenu
+// imposable "rémunération" (les dividendes en PFU n'entrent jamais dans le barème progressif,
+// donc la TMI ne dépend que de ce revenu-là).
+function trouverTMI(revenuImposable, bareme) {
+  let taux = 0;
+  bareme.forEach(t => { if (revenuImposable > t.borneBasse) taux = t.taux; });
+  return taux;
 }
 
 /* ===================== CONFIGURATION ===================== */
@@ -429,6 +503,7 @@ const COMPUTED_ROWS = [
   { section: 'Fiscal' },
   { metric:'revenuImposable', label:'Revenu imposable' },
   { metric:'IR', label:'IR' },
+  { metric:'TMI', label:'Tranche marginale d\'imposition (TMI)', isPct:true },
   { section: 'Résultat', highlight:true },
   { metric:'revenuNetEnPoche', label:'Revenu net en poche', big:true },
   { metric:'totalPrelevements', label:'Total cotisations + IS + IR' },
@@ -455,6 +530,7 @@ function computeMetrics(r){
     strate10: fmtEuro(r.strate10Utilisee) + ' <span class="suffix">/ ' + fmtEuro(r.plafond154_10) + '</span>',
     depasse154: r.per154Depasse ? '⚠️ dépassement' : '—',
     revenuImposable: r.revenuImposable, IR: r.IR,
+    TMI: fmtPct(r.TMI),
     revenuNetEnPoche: r.revenuNetEnPoche, totalPrelevements: r.totalPrelevements,
     tauxGlobal: fmtPct(r.tauxPrelevementGlobal),
   };
@@ -537,6 +613,8 @@ function renderAll(){
   wrap.querySelectorAll('.resizer').forEach(r => r.addEventListener('mousedown', onResizeStart));
 
   SCENARIOS_CACHE.forEach(scn => recomputeAndPaint(scn.rowIndex));
+  initCompareSelectors();
+  updateDeltaPanel();
 }
 
 // Recalcule un seul scénario à partir de SCENARIOS_CACHE (déjà à jour en mémoire) et peint
@@ -569,6 +647,7 @@ function onInputLive(e){
   const scn = SCENARIOS_CACHE.find(s => s.rowIndex === rowIndex);
   if(scn) scn[key] = isNaN(value) ? 0 : value;
   recomputeAndPaint(rowIndex);
+  updateDeltaPanel();
 }
 
 function escapeAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
@@ -628,6 +707,11 @@ document.getElementById('btn-refresh').addEventListener('click', async () => {
   try{ await loadAll(); } finally { btn.disabled = false; btn.style.opacity = ''; }
 });
 
+document.getElementById('btn-reset-widths').addEventListener('click', () => {
+  localStorage.removeItem(WIDTHS_KEY);
+  renderAll();
+});
+
 document.getElementById('btn-add-scenario').addEventListener('click', async () => {
   const nom = prompt('Nom du scénario ?', 'Nouveau scénario');
   if(nom === null) return;
@@ -644,11 +728,77 @@ document.getElementById('btn-add-scenario').addEventListener('click', async () =
   }catch(err){ showSaved("✕ échec : " + err.message, true); }
 });
 
+/* ===================== Comparaison A / B (delta) ===================== */
+// Toutes les lignes comparables : inputs + métriques calculées, avec le format d'affichage à utiliser.
+const DELTA_ROWS = [
+  ...INPUT_ROWS.map(d => ({ key: d.key, label: d.label, fromScn: true, fmt: 'euro', dir: 'neutral' })),
+  { key:'remBrute', label:'Rémunération brute retrouvée', fmt:'euro', dir:'neutral' },
+  { key:'IS', label:'IS', fmt:'euro', dir:'lowerBetter' },
+  { key:'beneficeNet', label:'Trésorerie restante (bénéfice net)', fmt:'euro', dir:'higherBetter' },
+  { key:'total', label:'Cotisations sociales', fmt:'euro', dir:'lowerBetter' },
+  { key:'un_GB', label:'1GB', fmt:'euro', dir:'neutral' },
+  { key:'revenuImposable', label:'Revenu imposable', fmt:'euro', dir:'lowerBetter' },
+  { key:'IR', label:'IR', fmt:'euro', dir:'lowerBetter' },
+  { key:'TMI', label:'TMI', fmt:'pct', dir:'lowerBetter' },
+  { key:'netDividendes', label:'Net dividendes', fmt:'euro', dir:'higherBetter' },
+  { key:'revenuNetEnPoche', label:'Revenu net en poche', fmt:'euro', dir:'higherBetter' },
+  { key:'totalPrelevements', label:'Total prélèvements', fmt:'euro', dir:'lowerBetter' },
+  { key:'tauxPrelevementGlobal', label:'Taux prélèvement global', fmt:'pct', dir:'lowerBetter' },
+];
+
+let compareA = null, compareB = null;
+
+function initCompareSelectors(){
+  const selA = document.getElementById('compare-select-a');
+  const selB = document.getElementById('compare-select-b');
+  if(!selA || !selB) return;
+  const options = SCENARIOS_CACHE.map(s => `<option value="${s.rowIndex}">${escapeAttr(s.nom || s.id)}</option>`).join('');
+  selA.innerHTML = options; selB.innerHTML = options;
+  if(compareA === null && SCENARIOS_CACHE[0]) compareA = SCENARIOS_CACHE[0].rowIndex;
+  if(compareB === null && SCENARIOS_CACHE[1]) compareB = SCENARIOS_CACHE[1].rowIndex;
+  if(SCENARIOS_CACHE.find(s=>s.rowIndex===compareA)) selA.value = compareA;
+  if(SCENARIOS_CACHE.find(s=>s.rowIndex===compareB)) selB.value = compareB;
+  selA.onchange = () => { compareA = parseInt(selA.value,10); updateDeltaPanel(); };
+  selB.onchange = () => { compareB = parseInt(selB.value,10); updateDeltaPanel(); };
+}
+
+function valueFor(rowIndex, def){
+  const scn = SCENARIOS_CACHE.find(s => s.rowIndex === rowIndex);
+  if(!scn) return null;
+  if(def.fromScn) return scn[def.key];
+  const { r } = calcScenarioSafe(scn);
+  if(!r) return null;
+  return r[def.key];
+}
+
+function updateDeltaPanel(){
+  const wrap = document.getElementById('delta-panel-body');
+  if(!wrap || compareA === null || compareB === null) return;
+  wrap.innerHTML = DELTA_ROWS.map(def => {
+    const vA = valueFor(compareA, def);
+    const vB = valueFor(compareB, def);
+    if(vA === null || vB === null) return `<tr><td class="row-label-col">${def.label}</td><td colspan="3" class="err-cell">—</td></tr>`;
+    const delta = vB - vA;
+    const fmt = v => def.fmt === 'pct' ? fmtPct(v) : fmtEuro(v);
+    const sign = delta > 0 ? '+' : '';
+    let cls = '';
+    if(def.dir === 'higherBetter') cls = delta > 0 ? 'delta-pos' : (delta < 0 ? 'delta-neg' : '');
+    else if(def.dir === 'lowerBetter') cls = delta < 0 ? 'delta-pos' : (delta > 0 ? 'delta-neg' : '');
+    return `<tr>
+      <td class="row-label-col">${def.label}</td>
+      <td>${fmt(vA)}</td>
+      <td>${fmt(vB)}</td>
+      <td class="${cls}">${sign}${fmt(delta)}</td>
+    </tr>`;
+  }).join('');
+}
+
+
 /* ===================== Colonnes redimensionnables (localStorage) ===================== */
 const WIDTHS_KEY = 'simu_per_col_widths';
 function loadWidths(){
-  try{ return JSON.parse(localStorage.getItem(WIDTHS_KEY)) || { rowLabel:230, scenarios:{} }; }
-  catch(e){ return { rowLabel:230, scenarios:{} }; }
+  try{ return JSON.parse(localStorage.getItem(WIDTHS_KEY)) || { rowLabel:190, scenarios:{} }; }
+  catch(e){ return { rowLabel:190, scenarios:{} }; }
 }
 function saveWidths(w){ localStorage.setItem(WIDTHS_KEY, JSON.stringify(w)); }
 
