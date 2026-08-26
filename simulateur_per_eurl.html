@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulateur PER / Rémunération EURL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #fafafa; --surface: #ffffff; --group-bg: #fcfcfb;
+    --line: #e4e4e1; --line-soft: #eeeeec;
+    --ink: #1c1d1b; --ink-soft: #6b6c68; --ink-faint: #9b9c97;
+    --accent: #2f5d54; --accent-soft: #e4ede9;
+    --amber: #b8862f; --amber-soft: #f6ecd9;
+    --danger: #a34a3a; --danger-soft: #f3e4e1;
+  }
+  *{box-sizing:border-box;}
+  html,body{max-width:100%;overflow-x:hidden;}
+  body{ margin:0; background: var(--bg); color: var(--ink); font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  button{ font-family:'Inter',sans-serif; font-size:0.82rem; font-weight:500; background: var(--accent); color:#fff; border:none; padding:9px 16px; cursor:pointer; border-radius:6px; }
+  button.secondary{ background: transparent; color: var(--ink-soft); border:1px solid var(--line); }
+  button.secondary:hover{ background: var(--line-soft); }
+  button:hover{ opacity:0.92; } button:disabled{ opacity:0.5; cursor:default; }
+  input[type="number"]{ font-family:'Inter',sans-serif; padding:7px 10px; border:1px solid var(--line); border-radius:6px; background: var(--surface); color: var(--ink); }
+
+  #auth-bar{ display:flex; justify-content:center; padding:16px; gap:10px; }
+  #status-line{ text-align:center; font-size:0.78rem; color: var(--ink-faint); min-height:18px; padding-bottom:6px; }
+  #status-line.error{ color: var(--danger); }
+  #global-saved{ position:fixed; bottom:20px; right:20px; background: var(--accent); color:#fff; font-size:0.8rem; padding:9px 16px; border-radius:8px; opacity:0; transition:opacity .25s; pointer-events:none; z-index:80; box-shadow:0 4px 14px rgba(0,0,0,0.15); }
+  #global-saved.show{ opacity:1; } #global-saved.err{ background: var(--danger); }
+
+  header{ padding: 26px 24px 0; text-align:center; }
+  header h1{ font-family:'Fraunces', serif; font-weight:600; font-size:1.5rem; margin:0 0 16px; letter-spacing:-0.01em; }
+
+  .shell{ max-width:1320px; margin:0 auto; padding:24px 24px 60px; }
+
+  .kpi-band{ display:flex; gap:16px; flex-wrap:wrap; margin-bottom:24px; }
+  .kpi-card{ flex:1; min-width:220px; background: var(--surface); border:1px solid var(--line); border-radius:10px; padding:14px 16px; box-shadow:0 1px 2px rgba(28,29,27,0.03); }
+  .kpi-card .label{ font-size:0.65rem; text-transform:uppercase; letter-spacing:0.05em; color: var(--ink-faint); margin-bottom:6px; }
+  .kpi-card .value{ font-family:'Fraunces', serif; font-weight:600; font-size:1.4rem; color: var(--accent); }
+  .kpi-sub span:not(:last-child)::after{ content:"·"; margin:0 10px; color: var(--line); }
+  .kpi-sub{ font-size:0.76rem; color: var(--ink-soft); }
+  .kpi-sub b{ color: var(--ink); font-weight:600; }
+
+  .toolbar{ display:flex; justify-content:flex-end; gap:8px; padding-bottom:14px; }
+
+  .group{ background: var(--group-bg); border:1px solid var(--line); border-radius:10px; margin-bottom:16px; overflow:hidden; }
+  .group-head{ display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid var(--line); background:#fcfcfb; flex-wrap:wrap; }
+  .group-head .title{ font-family:'Fraunces', serif; font-weight:600; font-size:1.02rem; flex-shrink:0; }
+  .group-head .sub-kpis{ display:flex; flex-wrap:wrap; font-size:0.74rem; color: var(--ink-soft); margin-left:auto; text-align:right; gap:0; }
+  .group-head .sub-kpis span{ margin-left:16px; white-space:nowrap; }
+  .group-head .sub-kpis b{ color: var(--ink); }
+
+  .table-scroll{ background: var(--surface); }
+  .cell-input.wide{ width:150px; }
+  .modal-error{ font-size:0.76rem; color: var(--danger); }
+
+  #empty-state{ text-align:center; color: var(--ink-faint); font-size:0.85rem; padding:40px 20px; }
+</style>
+</head>
+<body>
+
+<div id="auth-bar">
+  <button id="btn-signin">Se connecter avec Google</button>
+</div>
+<div id="status-line"></div>
+
+<header id="app-header" style="display:none;">
+  <h1>Simulateur PER / Rémunération — EURL</h1>
+</header>
+
+<div class="shell" id="shell" style="display:none;">
+  <div class="toolbar">
+    <button class="secondary" id="btn-refresh">↻ Rafraîchir</button>
+    <button id="btn-add-scenario">+ Nouveau scénario</button>
+  </div>
+  <div class="kpi-band" id="comparaison-band"></div>
+  <div id="scenarios-wrap"></div>
+</div>
+
+<div id="global-saved"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+/* ===================== MOTEUR DE CALCUL v2 ===================== */
+/* Correction : l'input du scénario est la rémunération NETTE visée (avant IR, PER 154 bis
+   inclus dedans puisque prélevé sur cette même enveloppe). La rémunération BRUTE est retrouvée
+   par résolution itérative (bissection), car l'assiette de cotisations dépend du brut. */
+
+// Calcule les cotisations sociales TNS pour un brut donné (fonction pure, réutilisée par la
+// résolution itérative et par le résultat final une fois le brut trouvé).
+function cotisationsSocialesTNS(remBrute, dividendes, params) {
+  const PASS = params.pass;
+  const revenuBrutAssiette = remBrute + dividendes; // dividendes = hypothèse part >10% capital, cf Notion §11
+  const abattementBrut = revenuBrutAssiette * params.abattementAssiette;
+  const abattementPlancher = 0.0176 * PASS;
+  const abattementPlafond = 1.30 * PASS;
+  const abattement = Math.min(Math.max(abattementBrut, abattementPlancher), abattementPlafond);
+  const assietteSociale = Math.max(revenuBrutAssiette - abattement, 0);
+
+  function tranche(base, mult, plafondBas, plafondHaut, taux) {
+    const bas = plafondBas * mult, haut = (plafondHaut === Infinity ? Infinity : plafondHaut * mult);
+    const assietteTranche = Math.min(Math.max(base, bas), haut) - bas;
+    return Math.max(assietteTranche, 0) * taux;
+  }
+
+  const retraiteBase =
+    Math.min(assietteSociale, PASS) * params.retraiteBaseT1 +
+    Math.max(assietteSociale - PASS, 0) * params.retraiteBaseT2;
+
+  const retraiteCompl =
+    Math.min(assietteSociale, PASS) * params.retraiteComplT1 +
+    (Math.min(assietteSociale, 4 * PASS) - Math.min(assietteSociale, PASS)) * params.retraiteComplT2;
+
+  const maladieTranches = [
+    [0, 0.20, params.maladieT1], [0.20, 0.40, params.maladieT2], [0.40, 0.60, params.maladieT3],
+    [0.60, 1.10, params.maladieT4], [1.10, 2.00, params.maladieT5], [2.00, 3.00, params.maladieT6],
+  ];
+  let maladie = 0;
+  maladieTranches.forEach(([lo, hi, taux]) => { maladie += tranche(assietteSociale, PASS, lo, hi, taux); });
+
+  const IJ = Math.min(assietteSociale, 5 * PASS) * params.ijMaladie;
+  const invaliditeDeces = Math.min(assietteSociale, PASS) * params.invaliditeDeces;
+  const allocFamiliales = tranche(assietteSociale, PASS, 1.10, 1.40, params.allocFamiliales);
+  const CSGCRDSDeductible = assietteSociale * params.csgDeductible;
+  const CSGCRDSNonDeductible = assietteSociale * params.csgNonDeductible;
+
+  const total = retraiteBase + retraiteCompl + maladie + IJ + invaliditeDeces + allocFamiliales
+              + CSGCRDSDeductible + CSGCRDSNonDeductible;
+
+  return { total, assietteSociale, retraiteBase, retraiteCompl, maladie, IJ, invaliditeDeces,
+           allocFamiliales, CSGCRDSDeductible, CSGCRDSNonDeductible };
+}
+
+// Résout le brut tel que : brut - cotisations(brut) = netteVisee
+// La fonction (brut -> net) est strictement croissante -> bissection simple, sûre et suffisante
+// (pas besoin de Newton, l'écart de précision visé est de l'ordre du centime sur quelques €).
+function resoudreBrutDepuisNette(netteVisee, dividendes, params) {
+  let lo = netteVisee, hi = netteVisee * 1.8; // le brut est toujours > net, 1.8x est une marge large
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    const cot = cotisationsSocialesTNS(mid, dividendes, params);
+    const netteObtenue = mid - cot.total;
+    if (netteObtenue < netteVisee) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+// scn: { CA, charges, remNette, per154, per163, dividendes }
+function calculerScenario(scn, params, bareme) {
+  const PASS = params.pass;
+
+  // ---- 1. Résolution brut <- nette ----
+  const remBrute = resoudreBrutDepuisNette(scn.remNette, scn.dividendes, params);
+  const cot = cotisationsSocialesTNS(remBrute, scn.dividendes, params);
+  const remNette = remBrute - cot.total; // recalculée, doit coller à scn.remNette à l'arrondi près
+
+  // ---- 2. Société ----
+  const resultatAvantIS = scn.CA - scn.charges - remBrute - scn.per154;
+  const isReduit = Math.min(Math.max(resultatAvantIS, 0), params.seuilISReduit) * params.tauxISReduit;
+  const isNormal = Math.max(resultatAvantIS - params.seuilISReduit, 0) * params.tauxISNormal;
+  const IS = isReduit + isNormal;
+  const beneficeNet = resultatAvantIS - IS;
+
+  // ---- 3. 1GB ----
+  const un_GB = remNette + cot.CSGCRDSNonDeductible; // prévoyance non-déductible non modélisée (pas de champ dédié)
+
+  // ---- 4. Plafonds 154 bis (calcul auto, répartition strate 15 puis 10) ----
+  const plafond154_15 = Math.max(0.15 * (remBrute - PASS), 0);
+  const plafond154_10 = 0.10 * remBrute;
+  const strate15Utilisee = Math.min(scn.per154, plafond154_15);
+  const strate10Utilisee = Math.min(Math.max(scn.per154 - strate15Utilisee, 0), plafond154_10);
+  const per154Depasse = scn.per154 > (plafond154_15 + plafond154_10);
+
+  // ---- 5. Revenu imposable + IR ----
+  const revenuImposable = Math.max((un_GB - scn.per154) * 0.90 - scn.per163, 0);
+  let IR = 0;
+  bareme.forEach(t => {
+    const haut = (t.borneHaute === null || t.borneHaute === undefined) ? Infinity : t.borneHaute;
+    const assietteTranche = Math.min(revenuImposable, haut) - t.borneBasse;
+    if (assietteTranche > 0) IR += assietteTranche * t.taux;
+  });
+
+  // ---- 6. Résultats finaux ----
+  // Cash en poche = nette - 154bis (déjà sorti via société) - 163 (viré perso) - IR
+  // Mais remNette telle que définie ici est déjà nette de cotisations ET inclut le 154bis
+  // (puisque brut a été résolu pour donner cette nette-là, 154bis compris dedans).
+  // Donc : cash réellement disponible après PER = remNette - scn.per154 - scn.per163
+  const cashApresPER = remNette - scn.per154 - scn.per163;
+  const revenuNetEnPoche = cashApresPER - IR;
+  const totalPrelevements = cot.total + IS + IR;
+  const tauxPrelevementGlobal = scn.CA > 0 ? totalPrelevements / scn.CA : 0;
+
+  return {
+    remBrute, remNette,
+    resultatAvantIS, IS, beneficeNet,
+    ...cot,
+    un_GB,
+    plafond154_15, plafond154_10, strate15Utilisee, strate10Utilisee, per154Depasse,
+    revenuImposable, IR,
+    cashApresPER, revenuNetEnPoche, totalPrelevements, tauxPrelevementGlobal,
+  };
+}
+
+/* ===================== CONFIGURATION ===================== */
+const CLIENT_ID = "815063719481-1e32pi1caur7pv175qivvrlcddpfr6vs.apps.googleusercontent.com";
+const SPREADSHEET_ID = "1Wxr-2U5Uc98puzvVo5Q9N9O92gPTGYVNFDme44EeW0w";
+/* ============================================================ */
+
+const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
+let tokenClient, accessToken = null, tokenExpiresAt = 0;
+
+// Structure des 3 onglets : header en row 5 (row 4 pour Barème IR), data à partir de la ligne suivante.
+const SHEETS = {
+  scenarios: { name: "Scénarios",           headerRow: 5, width: 11 }, // A:K
+  params:    { name: "Paramètres annuels",  headerRow: 5, width: 22 }, // A:V
+  bareme:    { name: "Barème IR",           headerRow: 4, width: 4  }, // A:D
+};
+
+let DATA = { scenarios: [], params: [], bareme: [] };
+let SHEET_IDS = {};
+
+const els = {
+  signin: document.getElementById('btn-signin'),
+  status: document.getElementById('status-line'),
+  header: document.getElementById('app-header'),
+  shell: document.getElementById('shell'),
+  globalSaved: document.getElementById('global-saved'),
+};
+
+function setStatus(msg, isError){
+  els.status.textContent = msg || "";
+  els.status.classList.toggle('error', !!isError);
+}
+function showSaved(msg, isErr){
+  els.globalSaved.textContent = msg || (isErr ? '✕ échec' : '✓ enregistré');
+  els.globalSaved.classList.toggle('err', !!isErr);
+  els.globalSaved.classList.add('show');
+  clearTimeout(showSaved._t);
+  showSaved._t = setTimeout(()=> els.globalSaved.classList.remove('show'), 1800);
+}
+
+window.addEventListener('load', () => {
+  if(window.google){
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID, scope: SCOPES, callback: () => {}
+    });
+  }
+});
+
+function requestToken(prompt){
+  return new Promise((resolve, reject) => {
+    if(!tokenClient){ reject(new Error('Client OAuth non initialisé.')); return; }
+    tokenClient.callback = (resp) => {
+      if(resp.error){ reject(new Error(resp.error)); return; }
+      accessToken = resp.access_token;
+      tokenExpiresAt = Date.now() + ((resp.expires_in || 3600) * 1000) - 60000;
+      resolve(accessToken);
+    };
+    tokenClient.requestAccessToken({ prompt });
+  });
+}
+
+els.signin.addEventListener('click', async () => {
+  try{ await requestToken('consent'); onSignedIn(); }
+  catch(e){ setStatus("Connexion refusée.", true); }
+});
+
+function onSignedIn(){
+  document.getElementById('auth-bar').style.display = "none";
+  els.header.style.display = "block";
+  els.shell.style.display = "block";
+  loadAll();
+}
+
+async function ensureFreshToken(){
+  if(!accessToken || Date.now() >= tokenExpiresAt){
+    try{ await requestToken(''); }
+    catch(e){
+      document.getElementById('auth-bar').style.display = 'flex';
+      els.header.style.display = "none";
+      els.shell.style.display = "none";
+      throw new Error('Session Google expirée, reconnecte-toi.');
+    }
+  }
+}
+
+async function apiFetch(url, options={}, _retried=false){
+  await ensureFreshToken();
+  const res = await fetch(url, { ...options, headers: { ...(options.headers||{}), Authorization: `Bearer ${accessToken}` } });
+  if(res.status === 401 && !_retried){ await requestToken(''); return apiFetch(url, options, true); }
+  if(!res.ok){ const t = await res.text(); throw new Error(`API ${res.status}: ${t}`); }
+  return res.json();
+}
+
+function colLetter(n){
+  let s = "", i = n + 1;
+  while(i > 0){ const m = (i - 1) % 26; s = String.fromCharCode(65+m) + s; i = Math.floor((i-1)/26); }
+  return s;
+}
+
+/* ===================== LOAD ===================== */
+async function loadAll(){
+  setStatus("Chargement...");
+  try{
+    if(Object.keys(SHEET_IDS).length === 0){
+      const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties(sheetId,title)`;
+      const meta = await apiFetch(metaUrl);
+      const byTitle = {};
+      (meta.sheets || []).forEach(s => { byTitle[s.properties.title] = s.properties.sheetId; });
+      Object.entries(SHEETS).forEach(([k, s]) => { if(byTitle[s.name] !== undefined) SHEET_IDS[k] = byTitle[s.name]; });
+    }
+    const keys = Object.keys(SHEETS);
+    const ranges = keys.map(k => {
+      const s = SHEETS[k];
+      return `${s.name}!A${s.headerRow+1}:${colLetter(s.width-1)}`;
+    });
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?` +
+      ranges.map(r => `ranges=${encodeURIComponent(r)}`).join('&');
+    const data = await apiFetch(url);
+    const vr = data.valueRanges || [];
+    keys.forEach((k, idx) => {
+      const values = (vr[idx] && vr[idx].values) || [];
+      const startRow = SHEETS[k].headerRow + 1;
+      DATA[k] = values
+        .map((r, i) => ({ rowIndex: startRow + i, cells: r }))
+        .filter(r => r.cells.some(c => c !== undefined && c !== "")); // ignore lignes vides
+    });
+    setStatus("");
+    parseParamsAndBareme();
+    renderAll();
+  }catch(e){
+    setStatus("Erreur de chargement : " + e.message + " — vérifie que les onglets Scénarios / Paramètres annuels / Barème IR existent bien.", true);
+  }
+}
+
+function cell(row, idx){ return (row.cells[idx] !== undefined && row.cells[idx] !== null) ? row.cells[idx] : ""; }
+function num(row, idx){
+  const raw = String(cell(row, idx)).replace(/\s/g,'').replace('%','').replace(',', '.');
+  const v = parseFloat(raw);
+  if(isNaN(v)) return 0;
+  return raw.includes('%') || String(cell(row,idx)).includes('%') ? v/100 : v;
+}
+function pct(row, idx){
+  const raw = cell(row, idx);
+  const v = parseFloat(String(raw).replace(',', '.').replace('%',''));
+  return isNaN(v) ? 0 : v/100;
+}
+
+// Onglet Paramètres annuels -> { [année]: { pass, seuilISReduit, ... } }
+// Onglet Barème IR -> { [année]: [ {borneBasse, borneHaute, taux}, ... ] }
+let PARAMS_BY_YEAR = {};
+let BAREME_BY_YEAR = {};
+
+function parseParamsAndBareme(){
+  PARAMS_BY_YEAR = {};
+  DATA.params.forEach(r => {
+    const annee = parseInt(cell(r,0), 10);
+    if(!annee) return;
+    PARAMS_BY_YEAR[annee] = {
+      pass: num(r,1), seuilISReduit: num(r,2), tauxISReduit: pct(r,3), tauxISNormal: pct(r,4),
+      retraiteBaseT1: pct(r,5), retraiteBaseT2: pct(r,6),
+      retraiteComplT1: pct(r,7), retraiteComplT2: pct(r,8),
+      maladieT1: pct(r,9), maladieT2: pct(r,10), maladieT3: pct(r,11),
+      maladieT4: pct(r,12), maladieT5: pct(r,13), maladieT6: pct(r,14),
+      ijMaladie: pct(r,15), invaliditeDeces: pct(r,16), allocFamiliales: pct(r,17),
+      csgDeductible: pct(r,18), csgNonDeductible: pct(r,19),
+      abattementAssiette: pct(r,20), seuilTMI41: num(r,21),
+    };
+  });
+
+  BAREME_BY_YEAR = {};
+  DATA.bareme.forEach(r => {
+    const annee = parseInt(cell(r,0), 10);
+    if(!annee) return;
+    if(!BAREME_BY_YEAR[annee]) BAREME_BY_YEAR[annee] = [];
+    const borneHauteRaw = cell(r,2);
+    BAREME_BY_YEAR[annee].push({
+      borneBasse: num(r,1),
+      borneHaute: borneHauteRaw === "" ? null : num(r,2),
+      taux: pct(r,3),
+    });
+  });
+}
+
+/* ===================== RENDER ===================== */
+
+function scenarioFromRow(r){
+  return {
+    rowIndex: r.rowIndex,
+    id: cell(r,0), nom: cell(r,1), ordre: num(r,2), annee: parseInt(cell(r,3),10) || 0,
+    CA: num(r,4), charges: num(r,5), remNette: num(r,6),
+    per154: num(r,7), per163: num(r,8), dividendes: num(r,9), notes: cell(r,10),
+  };
+}
+
+function fmtEuro(v){
+  return Math.round(v).toLocaleString('fr-FR') + ' €';
+}
+function fmtPct(v){
+  return (v*100).toLocaleString('fr-FR', {maximumFractionDigits:1}) + ' %';
+}
+
+function renderAll(){
+  const scenarios = DATA.scenarios
+    .map(scenarioFromRow)
+    .sort((a,b) => a.ordre - b.ordre);
+
+  if(scenarios.length === 0){
+    document.getElementById('comparaison-band').innerHTML = '';
+    document.getElementById('scenarios-wrap').innerHTML =
+      '<div id="empty-state">Aucun scénario. Ajoute une ligne dans l\'onglet "Scénarios" du Gsheet, puis rafraîchis.</div>';
+    return;
+  }
+
+  // Résultats calculés pour chaque scénario (avec gestion d'erreur si params/barème manquants)
+  const results = scenarios.map(scn => {
+    const params = PARAMS_BY_YEAR[scn.annee];
+    const bareme = BAREME_BY_YEAR[scn.annee];
+    if(!params || !bareme){
+      return { scn, error: `Paramètres ou barème IR manquants pour ${scn.annee}` };
+    }
+    try{
+      return { scn, r: calculerScenario(scn, params, bareme) };
+    }catch(e){
+      return { scn, error: e.message };
+    }
+  });
+
+  renderComparaisonBand(results);
+  renderScenarioCards(results);
+}
+
+function renderComparaisonBand(results){
+  const wrap = document.getElementById('comparaison-band');
+  wrap.innerHTML = results.map(({scn, r, error}) => {
+    if(error){
+      return `<div class="kpi-card"><div class="label">${scn.nom || scn.id}</div><div class="value neutral" style="color:var(--danger);font-size:0.85rem;">${error}</div></div>`;
+    }
+    return `
+      <div class="kpi-card">
+        <div class="label">${scn.nom || scn.id} — ${scn.annee}</div>
+        <div class="value">${fmtEuro(r.revenuNetEnPoche)}</div>
+        <div class="kpi-sub" style="padding:6px 0 0;">
+          <span>Prélèvements <b>${fmtEuro(r.totalPrelevements)}</b></span>
+          <span>Taux global <b>${fmtPct(r.tauxPrelevementGlobal)}</b></span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderScenarioCards(results){
+  const wrap = document.getElementById('scenarios-wrap');
+  wrap.innerHTML = results.map(({scn, r, error}) => {
+    const alerte154 = r && r.per154Depasse
+      ? `<div class="modal-error" style="display:block;margin-top:6px;">⚠️ 154 bis versé (${fmtEuro(scn.per154)}) dépasse le plafond disponible (${fmtEuro(r.plafond154_15+r.plafond154_10)})</div>`
+      : '';
+    return `
+    <div class="group" data-row="${scn.rowIndex}">
+      <div class="group-head">
+        <div class="title">${scn.nom || scn.id}</div>
+        <div class="sub-kpis">
+          <span>Année <b>${scn.annee}</b></span>
+          ${r ? `<span>Rém. brute retrouvée <b>${fmtEuro(r.remBrute)}</b></span>` : ''}
+          ${r ? `<span>IS <b>${fmtEuro(r.IS)}</b></span>` : ''}
+          ${r ? `<span>Trésorerie restante <b>${fmtEuro(r.beneficeNet)}</b></span>` : ''}
+        </div>
+      </div>
+      <div class="table-scroll" style="padding:14px 16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:14px;">
+          ${inputField(scn.rowIndex, 4, 'CA', scn.CA)}
+          ${inputField(scn.rowIndex, 5, 'Charges', scn.charges)}
+          ${inputField(scn.rowIndex, 6, 'Rémunération nette visée', scn.remNette)}
+          ${inputField(scn.rowIndex, 7, '154 bis versé', scn.per154)}
+          ${inputField(scn.rowIndex, 8, '163 versé', scn.per163)}
+          ${inputField(scn.rowIndex, 9, 'Dividendes', scn.dividendes)}
+        </div>
+        ${alerte154}
+        ${r ? `
+        <div style="margin-top:14px;font-size:0.78rem;color:var(--ink-soft);display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px 18px;">
+          <div>Cotisations sociales : <b style="color:var(--ink);">${fmtEuro(r.total)}</b></div>
+          <div>1GB : <b style="color:var(--ink);">${fmtEuro(r.un_GB)}</b></div>
+          <div>Strate 15% utilisée : <b style="color:var(--ink);">${fmtEuro(r.strate15Utilisee)}</b> / ${fmtEuro(r.plafond154_15)}</div>
+          <div>Strate 10% utilisée : <b style="color:var(--ink);">${fmtEuro(r.strate10Utilisee)}</b> / ${fmtEuro(r.plafond154_10)}</div>
+          <div>Revenu imposable : <b style="color:var(--ink);">${fmtEuro(r.revenuImposable)}</b></div>
+          <div>IR : <b style="color:var(--ink);">${fmtEuro(r.IR)}</b></div>
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('input.cell-input').forEach(inp => {
+    inp.addEventListener('change', onFieldChange);
+  });
+}
+
+function inputField(rowIndex, colIdx, label, value){
+  return `
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-faint);">
+      ${label}
+      <input class="cell-input wide" type="number" step="1"
+        data-row="${rowIndex}" data-col="${colIdx}" value="${value}"
+        style="font-family:'Inter',sans-serif;font-size:0.9rem;color:var(--ink);text-transform:none;letter-spacing:normal;">
+    </label>`;
+}
+
+async function onFieldChange(e){
+  const rowIndex = parseInt(e.target.dataset.row, 10);
+  const colIdx = parseInt(e.target.dataset.col, 10);
+  const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+
+  // Mise à jour optimiste locale
+  const row = DATA.scenarios.find(r => r.rowIndex === rowIndex);
+  if(row){ row.cells[colIdx] = String(value); }
+
+  const range = `${SHEETS.scenarios.name}!${colLetter(colIdx)}${rowIndex}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+  try{
+    await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ range, values: [[value]] }) });
+    showSaved();
+  }catch(err){
+    showSaved("✕ échec : " + err.message, true);
+  }
+  renderAll(); // recalcule tout côté client, pas besoin de recharger le Gsheet
+}
+
+document.getElementById('btn-refresh').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-refresh');
+  btn.disabled = true; btn.style.opacity = '0.5';
+  try{ await loadAll(); } finally { btn.disabled = false; btn.style.opacity = ''; }
+});
+
+document.getElementById('btn-add-scenario').addEventListener('click', async () => {
+  const anneeParDefaut = new Date().getFullYear();
+  const nouvelId = 'scn_' + Date.now().toString(36);
+  const values = [[nouvelId, 'Nouveau scénario', DATA.scenarios.length + 1, anneeParDefaut, 0, 0, 0, 0, 0, 0, '']];
+  const range = `${SHEETS.scenarios.name}!A:${colLetter(SHEETS.scenarios.width-1)}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  try{
+    await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ values }) });
+    showSaved();
+    await loadAll();
+  }catch(err){
+    showSaved("✕ échec : " + err.message, true);
+  }
+});
+
+</script>
+</body>
+</html>
