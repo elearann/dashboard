@@ -80,6 +80,12 @@
   .highlight-row .row-label-col{ background: var(--accent-soft); }
   .big-cell{ font-family:'Fraunces', serif; font-size:1.1rem; color: var(--accent); }
 
+  /* ---- Surbrillance manuelle par ligne (case à cocher, persistée en local) ---- */
+  tr.row-pinned td{ background: var(--amber-soft); }
+  tr.row-pinned .row-label-col{ background: var(--amber-soft); font-weight:600; }
+  .row-label-wrap{ display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .row-check{ flex-shrink:0; width:13px; height:13px; accent-color: var(--amber); cursor:pointer; margin:0; }
+
   .resizer{ position:absolute; top:0; right:0; width:6px; height:100%; cursor:col-resize; user-select:none; z-index:6; }
   .resizer:hover{ background: var(--accent-soft); }
 </style>
@@ -524,6 +530,23 @@ const INPUT_ROWS = [
   { key:'microFoncier', label:'Micro-foncier net', col:11 },
 ];
 
+/* ---- Lignes surlignées manuellement (persisté en local, propre à cet appareil/navigateur) ---- */
+const PINNED_ROWS_KEY = 'simu_per_pinned_rows';
+function loadPinnedRows(){
+  try{ return new Set(JSON.parse(localStorage.getItem(PINNED_ROWS_KEY)) || []); }
+  catch(e){ return new Set(); }
+}
+function savePinnedRows(){ localStorage.setItem(PINNED_ROWS_KEY, JSON.stringify([...PINNED_ROWS])); }
+let PINNED_ROWS = loadPinnedRows();
+
+function onTogglePinnedRow(e){
+  const key = e.target.dataset.rowkey;
+  const tr = e.target.closest('tr');
+  if(e.target.checked){ PINNED_ROWS.add(key); tr.classList.add('row-pinned'); }
+  else{ PINNED_ROWS.delete(key); tr.classList.remove('row-pinned'); }
+  savePinnedRows();
+}
+
 let SCENARIOS_CACHE = []; // dernière liste de scénarios rendue, pour recalcul live sans re-render complet
 
 function computeMetrics(r){
@@ -584,7 +607,9 @@ function renderAll(){
   html += '</tr>';
 
   INPUT_ROWS.forEach(def => {
-    html += `<tr><td class="row-label-col">${def.label}</td>`;
+    const rowKey = 'input:' + def.key;
+    const pinned = PINNED_ROWS.has(rowKey);
+    html += `<tr class="${pinned?'row-pinned':''}"><td class="row-label-col"><label class="row-label-wrap"><input type="checkbox" class="row-check" data-rowkey="${rowKey}" ${pinned?'checked':''}>${def.label}</label></td>`;
     SCENARIOS_CACHE.forEach(scn => {
       html += `<td><input class="cell-input" type="number" step="1" data-row="${scn.rowIndex}" data-col="${def.col}" data-key="${def.key}" value="${scn[def.key]}"></td>`;
     });
@@ -598,7 +623,9 @@ function renderAll(){
       html += '</tr>';
       return;
     }
-    html += `<tr class="${def.highlight?'highlight-row':''}"><td class="row-label-col">${def.label}</td>`;
+    const rowKey = 'metric:' + def.metric;
+    const pinned = PINNED_ROWS.has(rowKey);
+    html += `<tr class="${def.highlight?'highlight-row':''} ${pinned?'row-pinned':''}"><td class="row-label-col"><label class="row-label-wrap"><input type="checkbox" class="row-check" data-rowkey="${rowKey}" ${pinned?'checked':''}>${def.label}</label></td>`;
     SCENARIOS_CACHE.forEach(scn => {
       html += `<td class="computed-cell ${def.big?'big-cell':''}" data-row="${scn.rowIndex}" data-metric="${def.metric}">…</td>`;
     });
@@ -616,6 +643,8 @@ function renderAll(){
   wrap.querySelectorAll('button.btn-delete').forEach(btn => btn.addEventListener('click', onDeleteScenario));
   wrap.querySelectorAll('button.btn-dup').forEach(btn => btn.addEventListener('click', onDuplicateScenario));
   wrap.querySelectorAll('.resizer').forEach(r => r.addEventListener('mousedown', onResizeStart));
+  wrap.querySelectorAll('input.row-check').forEach(cb => cb.addEventListener('change', onTogglePinnedRow));
+  wrap.querySelectorAll('input.cell-input, input.scn-year').forEach(inp => attachPasteSanitizer(inp));
 
   SCENARIOS_CACHE.forEach(scn => recomputeAndPaint(scn.rowIndex));
   initCompareSelectors();
@@ -656,6 +685,29 @@ function onInputLive(e){
 }
 
 function escapeAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+// Corrige le bug du copier-coller depuis Sheets/Excel : les nombres formatés contiennent des
+// espaces insécables/fines comme séparateurs de milliers (ex: "120 000"), ce qu'un <input
+// type="number"> rejette silencieusement (valeur vidée -> traitée comme 0 en aval). On
+// intercepte le paste, on nettoie, et on réinjecte la valeur nous-mêmes.
+function sanitizeNumberPaste(raw){
+  return raw
+    .replace(/[\s\u00A0\u202F\u2009]/g, '')  // espace normal, insécable, fine, fine insécable
+    .replace(',', '.');
+}
+function attachPasteSanitizer(input){
+  input.addEventListener('paste', (e) => {
+    const clipboard = e.clipboardData || window.clipboardData;
+    if(!clipboard) return;
+    const text = clipboard.getData('text');
+    const cleaned = sanitizeNumberPaste(text);
+    if(cleaned === text) return; // rien à corriger, laisser le comportement natif
+    e.preventDefault();
+    input.value = cleaned;
+    input.dispatchEvent(new Event('input', { bubbles:true }));
+    input.dispatchEvent(new Event('change', { bubbles:true }));
+  });
+}
 
 async function onFieldPersist(e){
   const rowIndex = parseInt(e.target.dataset.row, 10);
