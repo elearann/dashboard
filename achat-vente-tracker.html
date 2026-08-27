@@ -824,10 +824,11 @@ function statutClass(s){
   return { 'Terminé':'statut-termine', 'En cours':'statut-encours', 'Abandonné':'statut-abandonne', 'Perdu':'statut-perdu' }[s] || 'statut-encours';
 }
 
-function pastilleClass(costPerUnit){
-  if(!costPerUnit || costPerUnit <= 0) return '';
-  if(costPerUnit <= 6) return 'ok';
-  if(costPerUnit <= 12) return 'warn';
+// Pastille basée sur le % de frais (EMS+Custom+Dom) par rapport au prix d'init.
+function pastilleClass(fraisPct){
+  if(fraisPct === null || fraisPct === undefined || isNaN(fraisPct)) return '';
+  if(fraisPct <= 25) return 'ok';
+  if(fraisPct <= 50) return 'warn';
   return 'high';
 }
 
@@ -1069,6 +1070,7 @@ function renderEvent(){
 
 function eventRowHtml(r){
   const total = eventRowTotal(r), pc = num(r,10), cpp = pc ? total/pc : 0;
+  const initE = num(r,4), fraisPctE = initE ? ((total - initE) / initE) * 100 : null;
   const comment = cell(r,12);
   return `
     <tr data-row="${r.rowIndex}">
@@ -1085,7 +1087,7 @@ function eventRowHtml(r){
       <td class="mfield mfield-left" data-mlabel="Nb PC"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,10))}" onblur="saveCell('event', ${r.rowIndex}, 10, this.value)"></td>
       <td class="readonly-val mfield" data-mlabel="€/PC">${cpp?cpp.toFixed(2)+' €':'—'}</td>
       <td class="readonly-val mfield mfield-left" data-mlabel="Frais % d'init">${fraisPctText(num(r,4), total)}</td>
-      <td class="pastille-cell"><span class="price-dot ${pastilleClass(cpp)}" title="Coût / PC"></span></td>
+      <td class="pastille-cell"><span class="price-dot ${pastilleClass(fraisPctE)}" title="% frais / init"></span></td>
     </tr>`;
 }
 
@@ -1184,6 +1186,7 @@ function renderCB(){
 
 function cbRowHtml(r){
   const total = cbRowTotal(r), full = num(r,5), cpa = full ? total/full : 0;
+  const initC = num(r,9), fraisPctC = initC ? ((total - initC) / initC) * 100 : null;
   const comment = cell(r,17);
   return `
     <tr data-row="${r.rowIndex}">
@@ -1204,7 +1207,7 @@ function cbRowHtml(r){
       <td class="mfield" data-mlabel="Dom"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,13))}" onblur="saveCell('cb', ${r.rowIndex}, 13, this.value)"></td>
       <td class="cost-cell readonly-val mfield mfield-left" data-mlabel="Total">${total?fmtEuro(total):'—'}</td>
       <td class="readonly-val mfield" data-mlabel="Frais % d'init">${fraisPctText(num(r,9), total)}</td>
-      <td class="pastille-cell"><span class="price-dot ${pastilleClass(cpa)}" title="Coût / album"></span></td>
+      <td class="pastille-cell"><span class="price-dot ${pastilleClass(fraisPctC)}" title="% frais / init"></span></td>
     </tr>`;
 }
 
