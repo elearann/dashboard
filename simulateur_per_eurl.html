@@ -607,9 +607,7 @@ function renderAll(){
   html += '</tr>';
 
   INPUT_ROWS.forEach(def => {
-    const rowKey = 'input:' + def.key;
-    const pinned = PINNED_ROWS.has(rowKey);
-    html += `<tr class="${pinned?'row-pinned':''}"><td class="row-label-col"><label class="row-label-wrap"><input type="checkbox" class="row-check" data-rowkey="${rowKey}" ${pinned?'checked':''}>${def.label}</label></td>`;
+    html += `<tr><td class="row-label-col">${def.label}</td>`;
     SCENARIOS_CACHE.forEach(scn => {
       html += `<td><input class="cell-input" type="number" step="1" data-row="${scn.rowIndex}" data-col="${def.col}" data-key="${def.key}" value="${scn[def.key]}"></td>`;
     });
@@ -623,9 +621,7 @@ function renderAll(){
       html += '</tr>';
       return;
     }
-    const rowKey = 'metric:' + def.metric;
-    const pinned = PINNED_ROWS.has(rowKey);
-    html += `<tr class="${def.highlight?'highlight-row':''} ${pinned?'row-pinned':''}"><td class="row-label-col"><label class="row-label-wrap"><input type="checkbox" class="row-check" data-rowkey="${rowKey}" ${pinned?'checked':''}>${def.label}</label></td>`;
+    html += `<tr class="${def.highlight?'highlight-row':''}"><td class="row-label-col">${def.label}</td>`;
     SCENARIOS_CACHE.forEach(scn => {
       html += `<td class="computed-cell ${def.big?'big-cell':''}" data-row="${scn.rowIndex}" data-metric="${def.metric}">…</td>`;
     });
@@ -643,7 +639,6 @@ function renderAll(){
   wrap.querySelectorAll('button.btn-delete').forEach(btn => btn.addEventListener('click', onDeleteScenario));
   wrap.querySelectorAll('button.btn-dup').forEach(btn => btn.addEventListener('click', onDuplicateScenario));
   wrap.querySelectorAll('.resizer').forEach(r => r.addEventListener('mousedown', onResizeStart));
-  wrap.querySelectorAll('input.row-check').forEach(cb => cb.addEventListener('change', onTogglePinnedRow));
   wrap.querySelectorAll('input.cell-input, input.scn-year').forEach(inp => attachPasteSanitizer(inp));
 
   SCENARIOS_CACHE.forEach(scn => recomputeAndPaint(scn.rowIndex));
@@ -834,20 +829,24 @@ function updateDeltaPanel(){
   wrap.innerHTML = DELTA_ROWS.map(def => {
     const vA = valueFor(compareA, def);
     const vB = valueFor(compareB, def);
-    if(vA === null || vB === null) return `<tr><td class="row-label-col">${def.label}</td><td colspan="3" class="err-cell">—</td></tr>`;
+    const rowKey = 'delta:' + def.key;
+    const pinned = PINNED_ROWS.has(rowKey);
+    const labelCell = `<td class="row-label-col"><label class="row-label-wrap"><input type="checkbox" class="row-check" data-rowkey="${rowKey}" ${pinned?'checked':''}>${def.label}</label></td>`;
+    if(vA === null || vB === null) return `<tr class="${pinned?'row-pinned':''}">${labelCell}<td colspan="3" class="err-cell">—</td></tr>`;
     const delta = vB - vA;
     const fmt = v => def.fmt === 'pct' ? fmtPct(v) : fmtEuro(v);
     const sign = delta > 0 ? '+' : '';
     let cls = '';
     if(def.dir === 'higherBetter') cls = delta > 0 ? 'delta-pos' : (delta < 0 ? 'delta-neg' : '');
     else if(def.dir === 'lowerBetter') cls = delta < 0 ? 'delta-pos' : (delta > 0 ? 'delta-neg' : '');
-    return `<tr>
-      <td class="row-label-col">${def.label}</td>
+    return `<tr class="${pinned?'row-pinned':''}">
+      ${labelCell}
       <td>${fmt(vA)}</td>
       <td>${fmt(vB)}</td>
       <td class="${cls}">${sign}${fmt(delta)}</td>
     </tr>`;
   }).join('');
+  wrap.querySelectorAll('input.row-check').forEach(cb => cb.addEventListener('change', onTogglePinnedRow));
 }
 
 
