@@ -143,6 +143,8 @@
   table{ width:100%; border-collapse:collapse; }
   table.resizable-table{ table-layout:fixed; width:auto; }
   table.resizable-table thead th{ position:relative; overflow:hidden; text-overflow:ellipsis; }
+  table.resizable-table thead th.sortable{ cursor:pointer; user-select:none; }
+  table.resizable-table thead th.sortable:hover{ background:rgba(47,93,84,0.08); }
   .col-resizer{
     position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; z-index:3;
     border-right:2px solid transparent;
@@ -425,19 +427,13 @@
         <span class="x" id="ventes-search-x">×</span>
       </div>
       <select id="ventes-filter-evcb"><option value="">Tous les events / CB</option></select>
-      <select id="ventes-sort">
-        <option value="date-desc">Plus récent d'abord</option>
-        <option value="date-asc">Plus ancien d'abord</option>
-      </select>
       <div class="toolbar-spacer"></div>
       <div class="toolbar-actions">
         <button class="icon-btn primary" id="ventes-add" title="Ajouter une vente">+</button>
       </div>
     </div>
     <div class="table-scroll"><table class="ventes-table resizable-table">
-      <thead><tr>
-        <th></th><th>Event ou CB</th><th>Item</th><th>Acheteur</th><th>Prix vente</th><th>Prix achat</th><th>Bénéf</th><th>Nb PC</th><th>État</th><th>Date</th><th></th>
-      </tr></thead>
+      <thead id="ventes-thead"></thead>
       <tbody id="ventes-body"></tbody>
     </table></div>
     <div id="ventes-empty" style="display:none;" class="home-note">Aucune vente enregistrée.</div>
@@ -454,11 +450,7 @@
       <div class="toolbar-actions"><button onclick="openGomModal()">+ Ajouter</button></div>
     </div>
     <div class="table-scroll ref-table"><table class="gom-table resizable-table">
-      <thead><tr>
-        <th class="sortable" onclick="toggleGomSort()" style="cursor:pointer;">Nom GOM / Seller <span id="gom-sort-arrow"></span></th>
-        <th>Lieu</th><th>Canal</th><th>Commentaire</th>
-        <th>Claims Event</th><th>Claims CB</th><th>% frais moy. Event</th><th>% frais moy. CB</th>
-      </tr></thead>
+      <thead id="gom-thead"></thead>
       <tbody id="gom-body"></tbody>
     </table></div>
   </div>
@@ -474,10 +466,7 @@
       <div class="toolbar-actions"><button onclick="openEvcbModal()">+ Ajouter</button></div>
     </div>
     <div class="table-scroll ref-table"><table class="evcb-table resizable-table">
-      <thead><tr>
-        <th class="sortable" onclick="toggleEvcbSort()" style="cursor:pointer;">Nom <span id="evcb-sort-arrow"></span></th>
-        <th>Type</th><th>Commentaire</th>
-      </tr></thead>
+      <thead id="evcb-thead"></thead>
       <tbody id="evcb-body"></tbody>
     </table></div>
   </div>
@@ -914,18 +903,18 @@ function makeColumnResizer(storageKey, colCount, defaults, tableSelector){
   return { init };
 }
 
-// "", Claim, Vendeur, Statut, Init, Payé, EMS, Custom, Dom, Total, Nb PC, €/PC, Frais %, ""
-const eventColResizer = makeColumnResizer('eventColWidths', 14,
-  [34,160,110,90,64,64,64,64,64,84,60,72,72,34], 'table.event-table');
+// "", Claim, Vendeur, Statut, Init, Payé, EMS, Custom, Dom, Total, Nb PC, €/PC, Nb produit, €/produit, Frais %, ""
+const eventColResizer = makeColumnResizer('eventColWidths', 16,
+  [34,160,110,90,64,64,64,64,64,84,60,72,72,72,72,34], 'table.event-table');
 // "", Vendeur, Statut, Store, Album, Nb alb., Full, Incl., POB/membre, Nb POB, Init, Payé, EMS, Custom, Dom, Total, Frais %, ""
 const cbColResizer = makeColumnResizer('cbColWidths', 18,
   [34,110,100,110,80,60,55,55,150,60,65,70,65,65,65,80,65,30], 'table.cb-table');
 // "", Event ou CB, Item, Acheteur, Prix vente, Prix achat, Bénéf, Nb PC, État, Date, ""
 const ventesColResizer = makeColumnResizer('ventesColWidths', 11,
   [34,180,160,130,95,95,85,60,110,110,70], 'table.ventes-table');
-// Nom GOM/Seller, Lieu, Canal, Commentaire
-const gomColResizer = makeColumnResizer('gomColWidths', 4,
-  [220,160,140,320], 'table.gom-table');
+// Nom GOM/Seller, Lieu, Canal, Commentaire, Claims Event, Claims CB, % frais moy. Event, % frais moy. CB
+const gomColResizer = makeColumnResizer('gomColWidths', 8,
+  [220,160,140,320,100,90,130,130], 'table.gom-table');
 // Nom, Type, Commentaire
 const evcbColResizer = makeColumnResizer('evcbColWidths', 3,
   [320,140,340], 'table.evcb-table');
@@ -1008,6 +997,65 @@ document.addEventListener('click', (e) => {
 initStatutMultiselect('event-filter-statut-ms', () => eventStatutFilter, (v) => eventStatutFilter = v, () => renderEvent());
 initStatutMultiselect('cb-filter-statut-ms', () => cbStatutFilter, (v) => cbStatutFilter = v, () => renderCB());
 
+// ---------- Tri générique (colonnes texte ou numériques, valeurs nulles toujours reléguées en fin) ----------
+function sortRows(rows, col, dir, valueFn){
+  if(!col) return rows;
+  return rows.slice().sort((a,b) => {
+    const va = valueFn(a,col), vb = valueFn(b,col);
+    const aNull = va === null || va === undefined || va === '';
+    const bNull = vb === null || vb === undefined || vb === '';
+    if(aNull && bNull) return 0;
+    if(aNull) return 1;
+    if(bNull) return -1;
+    if(typeof va === 'string') return dir * va.localeCompare(vb);
+    return dir * (va - vb);
+  });
+}
+function sortArrow(state, col){
+  return (state && state.col === col) ? (state.dir === 1 ? '▲' : '▼') : '';
+}
+
+// ---------- Achat Event : tri indépendant par sous-bloc (event), toutes colonnes ----------
+const EVENT_COLS = [
+  ['claim','Claim'], ['vendeur','Vendeur'], ['statut','Statut'], ['init','Init'], ['paye','Payé'],
+  ['ems','EMS'], ['custom','Custom'], ['dom','Dom'], ['total','Total'], ['nbpc','Nb PC'],
+  ['cpp','€/PC'], ['nbproduit','Nb produit'], ['cpproduit','€/produit'], ['frais',"Frais %"]
+];
+function eventSortValue(r, col){
+  const total = eventRowTotal(r);
+  switch(col){
+    case 'claim': return cell(r,1).toLowerCase();
+    case 'vendeur': return gomName(cell(r,2)).toLowerCase();
+    case 'statut': return cell(r,3).toLowerCase();
+    case 'init': return num(r,4);
+    case 'paye': return cell(r,5).toLowerCase();
+    case 'ems': return num(r,6);
+    case 'custom': return num(r,7);
+    case 'dom': return num(r,8);
+    case 'total': return total;
+    case 'nbpc': return num(r,10);
+    case 'cpp': { const pc = num(r,10); return pc ? total/pc : null; }
+    case 'nbproduit': return num(r,16);
+    case 'cpproduit': { const np = num(r,16); return np ? total/np : null; }
+    case 'frais': { const init = num(r,4); return init ? ((total-init)/init)*100 : null; }
+    default: return '';
+  }
+}
+let eventGroupSort = {}; // { groupId: {col, dir} }
+function sortEventGroup(g, col){
+  const cur = eventGroupSort[g];
+  if(cur && cur.col === col) cur.dir = -cur.dir;
+  else eventGroupSort[g] = { col, dir: 1 };
+  renderEvent();
+}
+function eventTheadHtml(g){
+  const gs = eventGroupSort[g];
+  const ths = EVENT_COLS.map(([key,label]) =>
+    `<th class="sortable" onclick="sortEventGroup('${escapeAttr(g)}','${key}')">${label} <span>${sortArrow(gs,key)}</span></th>`
+  ).join('');
+  return `<thead><tr><th></th>${ths}<th></th></tr></thead>`;
+}
+
 function renderEvent(){
   const q = (document.getElementById('event-search').value || '').trim().toLowerCase();
   const stFilter = eventStatutFilter; // array, [] = tous
@@ -1055,10 +1103,12 @@ function renderEvent(){
   if(!order.length){ wrap.innerHTML = `<div id="empty-state">Aucune fiche pour ce filtre.</div>`; return; }
 
   wrap.innerHTML = order.map(g => {
-    const grows = groups[g];
+    let grows = groups[g];
     const label = g ? evcbName(g) : '(sans event)';
     const gTotal = grows.reduce((s,r)=>s+eventRowTotal(r),0);
     const gPC = grows.reduce((s,r)=>s+num(r,10),0);
+    const gs = eventGroupSort[g];
+    if(gs) grows = sortRows(grows, gs.col, gs.dir, eventSortValue);
     return `
     <div class="group ${isGroupCollapsed('event', g) ? 'collapsed' : ''}" data-group="${escapeAttr(g)}">
       <div class="group-head">
@@ -1067,10 +1117,7 @@ function renderEvent(){
         <div class="sub-kpis"><span>${grows.length} claims · <b>${fmtEuro(gTotal)}</b> · ${gPC} PC</span></div>
       </div>
       <div class="table-scroll"><table class="event-table resizable-table">
-        <thead><tr>
-          <th></th><th>Claim</th><th>Vendeur</th><th>Statut</th><th>Init</th><th>Payé</th>
-          <th>EMS</th><th>Custom</th><th>Dom</th><th>Total</th><th>Nb PC</th><th>€/PC</th><th>Nb produit</th><th>€/produit</th><th>Frais %</th><th></th>
-        </tr></thead>
+        ${eventTheadHtml(g)}
         <tbody>${grows.map(r => eventRowHtml(r)).join('')}</tbody>
       </table></div>
       <div class="add-row"><button class="secondary" onclick="addEventClaim('${escapeAttr(g)}')">+ Ajouter un claim</button></div>
@@ -1109,6 +1156,49 @@ function eventRowHtml(r){
 function fraisPctText(init, total){
   if(!init) return '—';
   return (((total - init) / init) * 100).toFixed(1) + ' %';
+}
+
+// ---------- Achat CB : tri indépendant par sous-bloc (CB), toutes colonnes ----------
+const CB_COLS = [
+  ['vendeur','Vendeur'], ['statut','Statut'], ['store','Store'], ['album','Album'], ['nbalb','Nb alb.'],
+  ['full','Full'], ['incl','Incl.'], ['pobmembre','POB / membre'], ['nbpob','Nb POB'], ['init','Init'],
+  ['paye','Payé'], ['ems','EMS'], ['custom','Custom'], ['dom','Dom'], ['total','Total'], ['frais',"Frais %"]
+];
+function cbSortValue(r, col){
+  const total = cbRowTotal(r);
+  switch(col){
+    case 'vendeur': return gomName(cell(r,1)).toLowerCase();
+    case 'statut': return cell(r,16).toLowerCase();
+    case 'store': return cell(r,2).toLowerCase();
+    case 'album': return cell(r,3).toLowerCase();
+    case 'nbalb': return num(r,4);
+    case 'full': return num(r,5);
+    case 'incl': return num(r,6);
+    case 'pobmembre': return cell(r,7).toLowerCase();
+    case 'nbpob': return num(r,8);
+    case 'init': return num(r,9);
+    case 'paye': return cell(r,10).toLowerCase();
+    case 'ems': return num(r,11);
+    case 'custom': return num(r,12);
+    case 'dom': return num(r,13);
+    case 'total': return total;
+    case 'frais': { const init = num(r,9); return init ? ((total-init)/init)*100 : null; }
+    default: return '';
+  }
+}
+let cbGroupSort = {}; // { groupId: {col, dir} }
+function sortCbGroup(g, col){
+  const cur = cbGroupSort[g];
+  if(cur && cur.col === col) cur.dir = -cur.dir;
+  else cbGroupSort[g] = { col, dir: 1 };
+  renderCB();
+}
+function cbTheadHtml(g){
+  const gs = cbGroupSort[g];
+  const ths = CB_COLS.map(([key,label]) =>
+    `<th class="sortable" onclick="sortCbGroup('${escapeAttr(g)}','${key}')">${label} <span>${sortArrow(gs,key)}</span></th>`
+  ).join('');
+  return `<thead><tr><th></th>${ths}<th></th></tr></thead>`;
 }
 
 /* ---------- Achat CB ---------- */
@@ -1164,13 +1254,16 @@ function renderCB(){
   if(!order.length){ wrap.innerHTML = `<div id="empty-state">Aucune fiche pour ce filtre.</div>`; return; }
 
   wrap.innerHTML = order.map(g => {
-    const grows = groups[g];
+    let grows = groups[g];
     const label = g ? evcbName(g) : '(sans CB)';
     const gAlbums = grows.reduce((s,r)=>s+num(r,4),0);
     const gInit = grows.reduce((s,r)=>s+num(r,9),0);
     const gEms = grows.reduce((s,r)=>s+num(r,11),0);
     const gCustom = grows.reduce((s,r)=>s+num(r,12),0);
     const gTotal = grows.reduce((s,r)=>s+cbRowTotal(r),0);
+    const albumBd = albumBreakdown(grows); // calculé avant tri (indépendant de l'ordre)
+    const gs = cbGroupSort[g];
+    if(gs) grows = sortRows(grows, gs.col, gs.dir, cbSortValue);
     return `
     <div class="group ${isGroupCollapsed('cb', g) ? 'collapsed' : ''}" data-group="${escapeAttr(g)}">
       <div class="group-head">
@@ -1181,15 +1274,11 @@ function renderCB(){
           <span>EMS <b>${fmtEuro(gEms)}</b></span>
           <span>Custom <b>${fmtEuro(gCustom)}</b></span>
           <span>Total <b>${fmtEuro(gTotal)}</b></span>
-          ${albumBreakdown(grows)}
+          ${albumBd}
         </div>
       </div>
       <div class="table-scroll"><table class="cb-table resizable-table">
-        <thead><tr>
-          <th></th><th>Vendeur</th><th>Statut</th><th>Store</th><th>Album</th><th>Nb alb.</th><th>Full</th><th>Incl.</th>
-          <th>POB / membre</th><th>Nb POB</th><th>Init</th><th>Payé</th>
-          <th>EMS</th><th>Custom</th><th>Dom</th><th>Total</th><th>Frais %</th><th></th>
-        </tr></thead>
+        ${cbTheadHtml(g)}
         <tbody>${grows.map(r => cbRowHtml(r)).join('')}</tbody>
       </table></div>
       <div class="add-row"><button class="secondary" onclick="addCbClaim('${escapeAttr(g)}')">+ Ajouter un claim</button></div>
@@ -1226,7 +1315,38 @@ function cbRowHtml(r){
 }
 
 /* ---------- Ventes ---------- */
+const VENTES_COLS = [
+  ['evcb','Event ou CB'], ['item','Item'], ['acheteur','Acheteur'], ['prixvente','Prix vente'],
+  ['prixachat','Prix achat'], ['benef','Bénéf'], ['nbpc','Nb PC'], ['etat','État'], ['date','Date']
+];
+let ventesSort = { col: 'date', dir: -1 }; // tri par défaut : date décroissante
+function sortVentesBy(col){
+  if(ventesSort.col === col) ventesSort.dir = -ventesSort.dir;
+  else ventesSort = { col, dir: 1 };
+  renderVentes();
+}
+function ventesTheadHtml(){
+  const ths = VENTES_COLS.map(([key,label]) =>
+    `<th class="sortable" onclick="sortVentesBy('${key}')">${label} <span>${sortArrow(ventesSort,key)}</span></th>`
+  ).join('');
+  return `<tr><th></th>${ths}<th></th></tr>`;
+}
+function ventesSortValue(r, col){
+  switch(col){
+    case 'evcb': return evcbName(cell(r,0)).toLowerCase();
+    case 'item': return cell(r,1).toLowerCase();
+    case 'acheteur': return cell(r,2).toLowerCase();
+    case 'prixvente': return num(r,3);
+    case 'prixachat': return num(r,4);
+    case 'benef': return num(r,3) - num(r,4);
+    case 'nbpc': return num(r,6);
+    case 'etat': return cell(r,7).toLowerCase();
+    case 'date': return cell(r,9) || null;
+    default: return '';
+  }
+}
 function renderVentes(){
+  document.getElementById('ventes-thead').innerHTML = ventesTheadHtml();
   const q = (document.getElementById('ventes-search').value || '').trim().toLowerCase();
   const evcbFilter = document.getElementById('ventes-filter-evcb').value;
   let rows = DATA.ventes.filter(r => {
@@ -1235,14 +1355,7 @@ function renderVentes(){
     return evcbName(cell(r,0)).toLowerCase().includes(q) || cell(r,1).toLowerCase().includes(q) || cell(r,2).toLowerCase().includes(q);
   });
 
-  const sortDir = document.getElementById('ventes-sort').value === 'date-asc' ? 1 : -1;
-  rows = rows.slice().sort((a,b) => {
-    const da = cell(a,9) || '', db = cell(b,9) || '';
-    if(da === db) return 0;
-    if(!da) return 1;  // pas de date -> relégué en fin, quel que soit le sens du tri
-    if(!db) return -1;
-    return da < db ? -sortDir : sortDir;
-  });
+  rows = sortRows(rows, ventesSort.col, ventesSort.dir, ventesSortValue);
 
   const nbVentes = rows.length;
   const prixVenteTotal = rows.reduce((s,r)=>s+num(r,3),0);
@@ -1284,17 +1397,34 @@ function renderVentes(){
 /* ---------- Referentiels ---------- */
 let gomSearchQ = '';
 let evcbSearchQ = '';
-let gomSortAsc = null; // null = ordre naturel, true = A→Z, false = Z→A
-let evcbSortAsc = null;
-function toggleGomSort(){
-  gomSortAsc = gomSortAsc === null ? true : (gomSortAsc === true ? false : null);
-  document.getElementById('gom-sort-arrow').textContent = gomSortAsc === true ? '▲' : (gomSortAsc === false ? '▼' : '');
+let gomSort = { col: null, dir: 1 };
+let evcbSort = { col: null, dir: 1 };
+const GOM_COLS = [
+  ['nom','Nom GOM / Seller'], ['lieu','Lieu'], ['canal','Canal'], ['commentaire','Commentaire'],
+  ['claimsEvent','Claims Event'], ['claimsCB','Claims CB'], ['fraisEvent','% frais moy. Event'], ['fraisCB','% frais moy. CB']
+];
+const EVCB_COLS = [ ['nom','Nom'], ['type','Type'], ['commentaire','Commentaire'] ];
+function sortGomBy(col){
+  if(gomSort.col === col) gomSort.dir = -gomSort.dir;
+  else gomSort = { col, dir: 1 };
   renderReferentiels();
 }
-function toggleEvcbSort(){
-  evcbSortAsc = evcbSortAsc === null ? true : (evcbSortAsc === true ? false : null);
-  document.getElementById('evcb-sort-arrow').textContent = evcbSortAsc === true ? '▲' : (evcbSortAsc === false ? '▼' : '');
+function sortEvcbBy(col){
+  if(evcbSort.col === col) evcbSort.dir = -evcbSort.dir;
+  else evcbSort = { col, dir: 1 };
   renderReferentiels();
+}
+function gomTheadHtml(){
+  const ths = GOM_COLS.map(([key,label]) =>
+    `<th class="sortable" onclick="sortGomBy('${key}')">${label} <span>${sortArrow(gomSort,key)}</span></th>`
+  ).join('');
+  return `<tr>${ths}</tr>`;
+}
+function evcbTheadHtml(){
+  const ths = EVCB_COLS.map(([key,label]) =>
+    `<th class="sortable" onclick="sortEvcbBy('${key}')">${label} <span>${sortArrow(evcbSort,key)}</span></th>`
+  ).join('');
+  return `<tr>${ths}</tr>`;
 }
 // Métriques par GOM : nb claims Event/CB, et % frais moyen (uniquement sur les claims au statut "Terminé", et avec Init > 0).
 function gomMetrics(gomId){
@@ -1317,17 +1447,35 @@ function gomMetrics(gomId){
     fraisCB: avgFraisPct(cbClaims, 16, 9, cbRowTotal),
   };
 }
-function renderReferentiels(){
-  let gomRows = DATA.gom.filter(r => !gomSearchQ || cell(r,1).toLowerCase().includes(gomSearchQ));
-  if(gomSortAsc !== null){
-    gomRows = gomRows.slice().sort((a,b) => {
-      const cmp = cell(a,1).toLowerCase().localeCompare(cell(b,1).toLowerCase());
-      return gomSortAsc ? cmp : -cmp;
-    });
+function gomSortValue(entry, col){ // entry = {row, m}
+  switch(col){
+    case 'nom': return cell(entry.row,1).toLowerCase();
+    case 'lieu': return cell(entry.row,2).toLowerCase();
+    case 'canal': return cell(entry.row,3).toLowerCase();
+    case 'commentaire': return cell(entry.row,4).toLowerCase();
+    case 'claimsEvent': return entry.m.claimsEvent;
+    case 'claimsCB': return entry.m.claimsCB;
+    case 'fraisEvent': return entry.m.fraisEvent;
+    case 'fraisCB': return entry.m.fraisCB;
+    default: return '';
   }
-  document.getElementById('gom-body').innerHTML = gomRows.map(r => {
-    const m = gomMetrics(cell(r,0));
-    return `
+}
+function evcbSortValue(r, col){
+  switch(col){
+    case 'nom': return cell(r,1).toLowerCase();
+    case 'type': return cell(r,2).toLowerCase();
+    case 'commentaire': return cell(r,3).toLowerCase();
+    default: return '';
+  }
+}
+function renderReferentiels(){
+  document.getElementById('gom-thead').innerHTML = gomTheadHtml();
+  document.getElementById('evcb-thead').innerHTML = evcbTheadHtml();
+
+  let gomRows = DATA.gom.filter(r => !gomSearchQ || cell(r,1).toLowerCase().includes(gomSearchQ));
+  let gomEntries = gomRows.map(row => ({ row, m: gomMetrics(cell(row,0)) }));
+  gomEntries = sortRows(gomEntries, gomSort.col, gomSort.dir, gomSortValue);
+  document.getElementById('gom-body').innerHTML = gomEntries.map(({row:r, m}) => `
     <tr data-row="${r.rowIndex}">
       <td class="mtitle" data-mlabel="Nom GOM / Seller"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,1))}" onblur="saveCell('gom', ${r.rowIndex}, 1, this.value)"></td>
       <td class="mfield mfield-left" data-mlabel="Lieu"><input type="text" class="cell-input wide-lieu" value="${escapeAttr(cell(r,2))}" onblur="saveCell('gom', ${r.rowIndex}, 2, this.value)"></td>
@@ -1337,16 +1485,10 @@ function renderReferentiels(){
       <td class="readonly-val mfield" data-mlabel="Claims CB">${m.claimsCB}</td>
       <td class="readonly-val mfield" data-mlabel="% frais moy. Event">${m.fraisEvent!==null ? m.fraisEvent.toFixed(1)+' %' : '—'}</td>
       <td class="readonly-val mfield" data-mlabel="% frais moy. CB">${m.fraisCB!==null ? m.fraisCB.toFixed(1)+' %' : '—'}</td>
-    </tr>`;
-  }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--ink-faint);">${gomSearchQ ? 'Aucun résultat.' : "Aucun GOM pour l'instant."}</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--ink-faint);">${gomSearchQ ? 'Aucun résultat.' : "Aucun GOM pour l'instant."}</td></tr>`;
 
   let evcbRows = DATA.evcb.filter(r => !evcbSearchQ || cell(r,1).toLowerCase().includes(evcbSearchQ));
-  if(evcbSortAsc !== null){
-    evcbRows = evcbRows.slice().sort((a,b) => {
-      const cmp = cell(a,1).toLowerCase().localeCompare(cell(b,1).toLowerCase());
-      return evcbSortAsc ? cmp : -cmp;
-    });
-  }
+  evcbRows = sortRows(evcbRows, evcbSort.col, evcbSort.dir, evcbSortValue);
   document.getElementById('evcb-body').innerHTML = evcbRows.map(r => `
     <tr data-row="${r.rowIndex}">
       <td class="mtitle" data-mlabel="Nom"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,1))}" onblur="saveCell('evcb', ${r.rowIndex}, 1, this.value)"></td>
@@ -1643,7 +1785,7 @@ async function duplicateVenteRow(rowIndex){
   document.getElementById(id).addEventListener('input', renderCB);
   document.getElementById(id).addEventListener('change', renderCB);
 });
-['ventes-search','ventes-filter-evcb','ventes-sort'].forEach(id => {
+['ventes-search','ventes-filter-evcb'].forEach(id => {
   document.getElementById(id).addEventListener('input', renderVentes);
   document.getElementById(id).addEventListener('change', renderVentes);
 });
