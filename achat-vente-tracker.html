@@ -454,7 +454,11 @@
       <div class="toolbar-actions"><button onclick="openGomModal()">+ Ajouter</button></div>
     </div>
     <div class="table-scroll ref-table"><table class="gom-table resizable-table">
-      <thead><tr><th>Nom GOM / Seller</th><th>Lieu</th><th>Canal</th><th>Commentaire</th></tr></thead>
+      <thead><tr>
+        <th class="sortable" onclick="toggleGomSort()" style="cursor:pointer;">Nom GOM / Seller <span id="gom-sort-arrow"></span></th>
+        <th>Lieu</th><th>Canal</th><th>Commentaire</th>
+        <th>Claims Event</th><th>Claims CB</th><th>% frais moy. Event</th><th>% frais moy. CB</th>
+      </tr></thead>
       <tbody id="gom-body"></tbody>
     </table></div>
   </div>
@@ -470,7 +474,10 @@
       <div class="toolbar-actions"><button onclick="openEvcbModal()">+ Ajouter</button></div>
     </div>
     <div class="table-scroll ref-table"><table class="evcb-table resizable-table">
-      <thead><tr><th>Nom</th><th>Type</th><th>Commentaire</th></tr></thead>
+      <thead><tr>
+        <th class="sortable" onclick="toggleEvcbSort()" style="cursor:pointer;">Nom <span id="evcb-sort-arrow"></span></th>
+        <th>Type</th><th>Commentaire</th>
+      </tr></thead>
       <tbody id="evcb-body"></tbody>
     </table></div>
   </div>
@@ -536,7 +543,7 @@ const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 let tokenClient, accessToken = null, tokenExpiresAt = 0;
 
 const SHEETS = {
-  event: { name: "ACHAT_EVENT", width: 16 }, // col P (idx15) = Frais en % d'init (calc)
+  event: { name: "ACHAT_EVENT", width: 17 }, // col P (idx15) = Frais en % d'init (calc, formule Sheet) ; col Q (idx16) = Nb produit
   cb:    { name: "ACHAT_CB",    width: 21 }, // col U (idx20) = Frais en % d'init (calc)
   ventes:{ name: "VENTES",      width: 10 },
   gom:   { name: "GOM",         width: 5  }, // col A (idx0) = ID (clé stable) ; Nom en idx1
@@ -1022,6 +1029,8 @@ function renderEvent(){
   const total = rows.reduce((s,r)=>s+eventRowTotal(r),0);
   const nbPC = rows.reduce((s,r)=>s+num(r,10),0);
   const coutParPC = nbPC ? total/nbPC : 0;
+  const nbProduits = rows.reduce((s,r)=>s+num(r,16),0);
+  const coutParProduit = nbProduits ? total/nbProduits : 0;
   document.getElementById('event-kpi').innerHTML = `
     <div class="kpi-card"><div class="label">Claims</div><div class="value neutral">${claims}</div></div>
     <div class="kpi-card"><div class="label">Coût initial</div><div class="value neutral">${fmtEuro(initSum)}</div></div>
@@ -1029,6 +1038,8 @@ function renderEvent(){
     <div class="kpi-card"><div class="label">Coût total</div><div class="value">${fmtEuro(total)}</div></div>
     <div class="kpi-card"><div class="label">Nb PC</div><div class="value neutral">${nbPC}</div></div>
     <div class="kpi-card"><div class="label">Coût moyen / PC</div><div class="value">${coutParPC ? coutParPC.toFixed(2)+' €' : '—'}</div></div>
+    <div class="kpi-card"><div class="label">Nb produits</div><div class="value neutral">${nbProduits}</div></div>
+    <div class="kpi-card"><div class="label">Coût moyen / produit</div><div class="value">${coutParProduit ? coutParProduit.toFixed(2)+' €' : '—'}</div></div>
   `;
 
   // Groupes par Event (clé = ID, libellé affiché = nom résolu)
@@ -1058,7 +1069,7 @@ function renderEvent(){
       <div class="table-scroll"><table class="event-table resizable-table">
         <thead><tr>
           <th></th><th>Claim</th><th>Vendeur</th><th>Statut</th><th>Init</th><th>Payé</th>
-          <th>EMS</th><th>Custom</th><th>Dom</th><th>Total</th><th>Nb PC</th><th>€/PC</th><th>Frais %</th><th></th>
+          <th>EMS</th><th>Custom</th><th>Dom</th><th>Total</th><th>Nb PC</th><th>€/PC</th><th>Nb produit</th><th>€/produit</th><th>Frais %</th><th></th>
         </tr></thead>
         <tbody>${grows.map(r => eventRowHtml(r)).join('')}</tbody>
       </table></div>
@@ -1071,6 +1082,7 @@ function renderEvent(){
 function eventRowHtml(r){
   const total = eventRowTotal(r), pc = num(r,10), cpp = pc ? total/pc : 0;
   const initE = num(r,4), fraisPctE = initE ? ((total - initE) / initE) * 100 : null;
+  const nbProd = num(r,16), cpProd = nbProd ? total/nbProd : 0;
   const comment = cell(r,12);
   return `
     <tr data-row="${r.rowIndex}">
@@ -1086,6 +1098,8 @@ function eventRowHtml(r){
       <td class="cost-cell readonly-val mfield" data-mlabel="Total">${total?fmtEuro(total):'—'}</td>
       <td class="mfield mfield-left" data-mlabel="Nb PC"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,10))}" onblur="saveCell('event', ${r.rowIndex}, 10, this.value)"></td>
       <td class="readonly-val mfield" data-mlabel="€/PC">${cpp?cpp.toFixed(2)+' €':'—'}</td>
+      <td class="mfield mfield-left" data-mlabel="Nb produit"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,16))}" onblur="saveCell('event', ${r.rowIndex}, 16, this.value)"></td>
+      <td class="readonly-val mfield" data-mlabel="€/produit">${cpProd?cpProd.toFixed(2)+' €':'—'}</td>
       <td class="readonly-val mfield mfield-left" data-mlabel="Frais % d'init">${fraisPctText(num(r,4), total)}</td>
       <td class="pastille-cell"><span class="price-dot ${pastilleClass(fraisPctE)}" title="% frais / init"></span></td>
     </tr>`;
@@ -1163,7 +1177,7 @@ function renderCB(){
         <div class="collapse-btn" onclick="toggleGroupCollapse('cb', '${escapeAttr(g)}', this)">▾</div>
         <div class="title">${escapeHtml(label)}</div>
         <div class="sub-kpis">
-          <span>${gAlbums} albums · <b>${fmtEuro(gInit)}</b> init</span>
+          <span>${grows.length} claims · ${gAlbums} albums · <b>${fmtEuro(gInit)}</b> init</span>
           <span>EMS <b>${fmtEuro(gEms)}</b></span>
           <span>Custom <b>${fmtEuro(gCustom)}</b></span>
           <span>Total <b>${fmtEuro(gTotal)}</b></span>
@@ -1270,17 +1284,69 @@ function renderVentes(){
 /* ---------- Referentiels ---------- */
 let gomSearchQ = '';
 let evcbSearchQ = '';
+let gomSortAsc = null; // null = ordre naturel, true = A→Z, false = Z→A
+let evcbSortAsc = null;
+function toggleGomSort(){
+  gomSortAsc = gomSortAsc === null ? true : (gomSortAsc === true ? false : null);
+  document.getElementById('gom-sort-arrow').textContent = gomSortAsc === true ? '▲' : (gomSortAsc === false ? '▼' : '');
+  renderReferentiels();
+}
+function toggleEvcbSort(){
+  evcbSortAsc = evcbSortAsc === null ? true : (evcbSortAsc === true ? false : null);
+  document.getElementById('evcb-sort-arrow').textContent = evcbSortAsc === true ? '▲' : (evcbSortAsc === false ? '▼' : '');
+  renderReferentiels();
+}
+// Métriques par GOM : nb claims Event/CB, et % frais moyen (uniquement sur les claims au statut "Terminé", et avec Init > 0).
+function gomMetrics(gomId){
+  const evClaims = DATA.event.filter(r => cell(r,2) === gomId);
+  const cbClaims = DATA.cb.filter(r => cell(r,1) === gomId);
+  function avgFraisPct(claims, statutIdx, initIdx, totalFn){
+    const done = claims.filter(r => cell(r,statutIdx) === 'Terminé' && num(r,initIdx) > 0);
+    if(!done.length) return null;
+    const sum = done.reduce((s,r) => {
+      const total = totalFn(r);
+      const init = num(r,initIdx);
+      return s + ((total - init) / init) * 100;
+    }, 0);
+    return sum / done.length;
+  }
+  return {
+    claimsEvent: evClaims.length,
+    claimsCB: cbClaims.length,
+    fraisEvent: avgFraisPct(evClaims, 3, 4, eventRowTotal),
+    fraisCB: avgFraisPct(cbClaims, 16, 9, cbRowTotal),
+  };
+}
 function renderReferentiels(){
-  const gomRows = DATA.gom.filter(r => !gomSearchQ || cell(r,1).toLowerCase().includes(gomSearchQ));
-  document.getElementById('gom-body').innerHTML = gomRows.map(r => `
+  let gomRows = DATA.gom.filter(r => !gomSearchQ || cell(r,1).toLowerCase().includes(gomSearchQ));
+  if(gomSortAsc !== null){
+    gomRows = gomRows.slice().sort((a,b) => {
+      const cmp = cell(a,1).toLowerCase().localeCompare(cell(b,1).toLowerCase());
+      return gomSortAsc ? cmp : -cmp;
+    });
+  }
+  document.getElementById('gom-body').innerHTML = gomRows.map(r => {
+    const m = gomMetrics(cell(r,0));
+    return `
     <tr data-row="${r.rowIndex}">
       <td class="mtitle" data-mlabel="Nom GOM / Seller"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,1))}" onblur="saveCell('gom', ${r.rowIndex}, 1, this.value)"></td>
       <td class="mfield mfield-left" data-mlabel="Lieu"><input type="text" class="cell-input wide-lieu" value="${escapeAttr(cell(r,2))}" onblur="saveCell('gom', ${r.rowIndex}, 2, this.value)"></td>
       <td class="mfield" data-mlabel="Canal">${canalSelectHtml('gom', r.rowIndex, 3, cell(r,3))}</td>
       <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,4))}" onblur="saveCell('gom', ${r.rowIndex}, 4, this.value)"></td>
-    </tr>`).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--ink-faint);">${gomSearchQ ? 'Aucun résultat.' : "Aucun GOM pour l'instant."}</td></tr>`;
+      <td class="readonly-val mfield" data-mlabel="Claims Event">${m.claimsEvent}</td>
+      <td class="readonly-val mfield" data-mlabel="Claims CB">${m.claimsCB}</td>
+      <td class="readonly-val mfield" data-mlabel="% frais moy. Event">${m.fraisEvent!==null ? m.fraisEvent.toFixed(1)+' %' : '—'}</td>
+      <td class="readonly-val mfield" data-mlabel="% frais moy. CB">${m.fraisCB!==null ? m.fraisCB.toFixed(1)+' %' : '—'}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--ink-faint);">${gomSearchQ ? 'Aucun résultat.' : "Aucun GOM pour l'instant."}</td></tr>`;
 
-  const evcbRows = DATA.evcb.filter(r => !evcbSearchQ || cell(r,1).toLowerCase().includes(evcbSearchQ));
+  let evcbRows = DATA.evcb.filter(r => !evcbSearchQ || cell(r,1).toLowerCase().includes(evcbSearchQ));
+  if(evcbSortAsc !== null){
+    evcbRows = evcbRows.slice().sort((a,b) => {
+      const cmp = cell(a,1).toLowerCase().localeCompare(cell(b,1).toLowerCase());
+      return evcbSortAsc ? cmp : -cmp;
+    });
+  }
   document.getElementById('evcb-body').innerHTML = evcbRows.map(r => `
     <tr data-row="${r.rowIndex}">
       <td class="mtitle" data-mlabel="Nom"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,1))}" onblur="saveCell('evcb', ${r.rowIndex}, 1, this.value)"></td>
