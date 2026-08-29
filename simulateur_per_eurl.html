@@ -34,7 +34,7 @@
   header{ padding: 26px 24px 0; text-align:center; }
   header h1{ font-family:'Fraunces', serif; font-weight:600; font-size:1.5rem; margin:0 0 16px; letter-spacing:-0.01em; }
 
-  .shell{ max-width:1400px; margin:0 auto; padding:24px 24px 60px; }
+  .shell{ max-width:1400px; width:80vw; margin:0 auto; padding:24px 24px 60px; }
   .toolbar{ display:flex; justify-content:flex-end; gap:8px; padding-bottom:14px; }
 
   #empty-state{ text-align:center; color: var(--ink-faint); font-size:0.85rem; padding:40px 20px; }
@@ -79,12 +79,6 @@
   .highlight-row td{ background: var(--accent-soft); font-weight:600; }
   .highlight-row .row-label-col{ background: var(--accent-soft); }
   .big-cell{ font-family:'Fraunces', serif; font-size:1.1rem; color: var(--accent); }
-
-  /* ---- Surbrillance manuelle par ligne (case à cocher, persistée en local) ---- */
-  tr.row-pinned td{ background: var(--amber-soft); }
-  tr.row-pinned .row-label-col{ background: var(--amber-soft); font-weight:600; }
-  .row-label-wrap{ display:flex; align-items:center; gap:6px; cursor:pointer; }
-  .row-check{ flex-shrink:0; width:13px; height:13px; accent-color: var(--amber); cursor:pointer; margin:0; }
 
   .resizer{ position:absolute; top:0; right:0; width:6px; height:100%; cursor:col-resize; user-select:none; z-index:6; }
   .resizer:hover{ background: var(--accent-soft); }
@@ -182,7 +176,10 @@ function cotisationsSocialesTNS(remBrute, dividendes, params) {
 // La fonction (brut -> net) est strictement croissante -> bissection simple, sûre et suffisante
 // (pas besoin de Newton, l'écart de précision visé est de l'ordre du centime sur quelques €).
 function resoudreBrutDepuisNette(netteVisee, dividendes, params) {
-  let lo = netteVisee, hi = netteVisee * 1.8; // le brut est toujours > net, 1.8x est une marge large
+  // borne haute robuste même si netteVisee est basse ou nulle (cas "tout en dividendes") :
+  // on part d'un plancher absolu (1 PASS) en plus du multiplicateur, pour que la bissection
+  // ait toujours un intervalle de recherche valide.
+  let lo = Math.max(netteVisee, 0), hi = Math.max(netteVisee * 1.8, params.pass);
   for (let i = 0; i < 60; i++) {
     const mid = (lo + hi) / 2;
     const cot = cotisationsSocialesTNS(mid, dividendes, params);
@@ -202,10 +199,18 @@ function calculerScenario(scn, params, bareme) {
   const seuil10 = 0.10 * CAPITAL_SOCIAL;
   const fractionCotisationsDividendes = Math.max(dividendesBruts - seuil10, 0);
 
-  // ---- 1. Résolution brut <- nette (l'assiette inclut la fraction dividendes >10%) ----
-  const remBrute = resoudreBrutDepuisNette(scn.remNette, fractionCotisationsDividendes, params);
+  // ---- 1. Résolution brut <- nette (le brut ne dépend que de la rémunération) ----
+  const remBrute = resoudreBrutDepuisNette(scn.remNette, 0, params);
+  // Cotisations liées à la seule rémunération : c'est ce qui détermine la nette réellement
+  // encaissée sur ce flux. La société règle la facture de cotisations globale (rému + dividendes,
+  // vérifié contre le simulateur URSSAF officiel) — la part générée par les dividendes ne vient
+  // donc jamais grignoter la rémunération nette, elle est financée à part par la société et
+  // imputée sur le rendement net des dividendes eux-mêmes (cf calculDividendes ci-dessous).
+  const cotRem = cotisationsSocialesTNS(remBrute, 0, params);
+  const remNette = remBrute - cotRem.total;
+  // Facture de cotisations globale réelle (rému + fraction dividendes >10%), affichée à titre
+  // informatif — c'est le vrai total que la société règle à l'URSSAF.
   const cot = cotisationsSocialesTNS(remBrute, fractionCotisationsDividendes, params);
-  const remNette = remBrute - cot.total;
 
   // ---- 1bis. Dividendes (mode PFU, sans prise en charge société — cf conversation) ----
   const div = calculDividendes(dividendesBruts, remBrute, params);
@@ -218,13 +223,16 @@ function calculerScenario(scn, params, bareme) {
   const beneficeNet = resultatAvantIS - IS;
 
   // ---- 3. 1GB ----
-  const un_GB = remNette + cot.CSGCRDSNonDeductible;
+  // Le 1GB (base des plafonds PER et du revenu imposable) ne doit intégrer que la CSG non
+  // déductible liée à la rémunération — les dividendes n'entrent jamais dans le revenu
+  // professionnel (vérifié contre le code source modele-ti le 27/08).
+  const un_GB = remNette + cotRem.CSGCRDSNonDeductible;
 
   // ---- 4. Plafonds 154 bis ----
   // Base = rémunération NETTE (confirmé Notion §8 : "15% × (120 000 − PASS)", 120 000 = le net cible),
   // pas la brute. Correction du 26/08.
   const plafond154_15 = Math.max(0.15 * (remNette - PASS), 0);
-  const plafond154_10 = 0.10 * remNette;
+  const plafond154_10 = Math.max(0.10 * remNette, 0);
   const strate15Utilisee = Math.min(scn.per154, plafond154_15);
   const strate10Utilisee = Math.min(Math.max(scn.per154 - strate15Utilisee, 0), plafond154_10);
   const per154Depasse = scn.per154 > (plafond154_15 + plafond154_10);
@@ -243,7 +251,7 @@ function calculerScenario(scn, params, bareme) {
   // ---- 6. Résultats finaux ----
   const cashApresPER = remNette - scn.per154 - scn.per163;
   const revenuNetEnPoche = cashApresPER - IR + div.netDividendes;
-  const totalPrelevements = cot.total + IS + IR + div.totalPrelevementsDividendes;
+  const totalPrelevements = cotRem.total + IS + IR + div.totalPrelevementsDividendes;
   const tauxPrelevementGlobal = scn.CA > 0 ? totalPrelevements / scn.CA : 0;
 
   return {
@@ -523,29 +531,12 @@ const COMPUTED_ROWS = [
 const INPUT_ROWS = [
   { key:'CA', label:'CA', col:4 },
   { key:'charges', label:'Charges', col:5 },
-  { key:'remNette', label:'Rémunération nette visée', col:6 },
+  { key:'remNette', label:'Rémunération nette', col:6 },
   { key:'per154', label:'154 bis versé', col:7 },
   { key:'per163', label:'163 versé', col:8 },
   { key:'dividendes', label:'Dividendes', col:9 },
   { key:'microFoncier', label:'Micro-foncier net', col:11 },
 ];
-
-/* ---- Lignes surlignées manuellement (persisté en local, propre à cet appareil/navigateur) ---- */
-const PINNED_ROWS_KEY = 'simu_per_pinned_rows';
-function loadPinnedRows(){
-  try{ return new Set(JSON.parse(localStorage.getItem(PINNED_ROWS_KEY)) || []); }
-  catch(e){ return new Set(); }
-}
-function savePinnedRows(){ localStorage.setItem(PINNED_ROWS_KEY, JSON.stringify([...PINNED_ROWS])); }
-let PINNED_ROWS = loadPinnedRows();
-
-function onTogglePinnedRow(e){
-  const key = e.target.dataset.rowkey;
-  const tr = e.target.closest('tr');
-  if(e.target.checked){ PINNED_ROWS.add(key); tr.classList.add('row-pinned'); }
-  else{ PINNED_ROWS.delete(key); tr.classList.remove('row-pinned'); }
-  savePinnedRows();
-}
 
 let SCENARIOS_CACHE = []; // dernière liste de scénarios rendue, pour recalcul live sans re-render complet
 
@@ -639,7 +630,6 @@ function renderAll(){
   wrap.querySelectorAll('button.btn-delete').forEach(btn => btn.addEventListener('click', onDeleteScenario));
   wrap.querySelectorAll('button.btn-dup').forEach(btn => btn.addEventListener('click', onDuplicateScenario));
   wrap.querySelectorAll('.resizer').forEach(r => r.addEventListener('mousedown', onResizeStart));
-  wrap.querySelectorAll('input.cell-input, input.scn-year').forEach(inp => attachPasteSanitizer(inp));
 
   SCENARIOS_CACHE.forEach(scn => recomputeAndPaint(scn.rowIndex));
   initCompareSelectors();
@@ -680,29 +670,6 @@ function onInputLive(e){
 }
 
 function escapeAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
-
-// Corrige le bug du copier-coller depuis Sheets/Excel : les nombres formatés contiennent des
-// espaces insécables/fines comme séparateurs de milliers (ex: "120 000"), ce qu'un <input
-// type="number"> rejette silencieusement (valeur vidée -> traitée comme 0 en aval). On
-// intercepte le paste, on nettoie, et on réinjecte la valeur nous-mêmes.
-function sanitizeNumberPaste(raw){
-  return raw
-    .replace(/[\s\u00A0\u202F\u2009]/g, '')  // espace normal, insécable, fine, fine insécable
-    .replace(',', '.');
-}
-function attachPasteSanitizer(input){
-  input.addEventListener('paste', (e) => {
-    const clipboard = e.clipboardData || window.clipboardData;
-    if(!clipboard) return;
-    const text = clipboard.getData('text');
-    const cleaned = sanitizeNumberPaste(text);
-    if(cleaned === text) return; // rien à corriger, laisser le comportement natif
-    e.preventDefault();
-    input.value = cleaned;
-    input.dispatchEvent(new Event('input', { bubbles:true }));
-    input.dispatchEvent(new Event('change', { bubbles:true }));
-  });
-}
 
 async function onFieldPersist(e){
   const rowIndex = parseInt(e.target.dataset.row, 10);
@@ -829,24 +796,20 @@ function updateDeltaPanel(){
   wrap.innerHTML = DELTA_ROWS.map(def => {
     const vA = valueFor(compareA, def);
     const vB = valueFor(compareB, def);
-    const rowKey = 'delta:' + def.key;
-    const pinned = PINNED_ROWS.has(rowKey);
-    const labelCell = `<td class="row-label-col"><label class="row-label-wrap"><input type="checkbox" class="row-check" data-rowkey="${rowKey}" ${pinned?'checked':''}>${def.label}</label></td>`;
-    if(vA === null || vB === null) return `<tr class="${pinned?'row-pinned':''}">${labelCell}<td colspan="3" class="err-cell">—</td></tr>`;
+    if(vA === null || vB === null) return `<tr><td class="row-label-col">${def.label}</td><td colspan="3" class="err-cell">—</td></tr>`;
     const delta = vB - vA;
     const fmt = v => def.fmt === 'pct' ? fmtPct(v) : fmtEuro(v);
     const sign = delta > 0 ? '+' : '';
     let cls = '';
     if(def.dir === 'higherBetter') cls = delta > 0 ? 'delta-pos' : (delta < 0 ? 'delta-neg' : '');
     else if(def.dir === 'lowerBetter') cls = delta < 0 ? 'delta-pos' : (delta > 0 ? 'delta-neg' : '');
-    return `<tr class="${pinned?'row-pinned':''}">
-      ${labelCell}
+    return `<tr>
+      <td class="row-label-col">${def.label}</td>
       <td>${fmt(vA)}</td>
       <td>${fmt(vB)}</td>
       <td class="${cls}">${sign}${fmt(delta)}</td>
     </tr>`;
   }).join('');
-  wrap.querySelectorAll('input.row-check').forEach(cb => cb.addEventListener('change', onTogglePinnedRow));
 }
 
 
