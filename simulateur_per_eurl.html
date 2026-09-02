@@ -86,6 +86,10 @@
   .row-label-wrap{ display:flex; align-items:center; gap:6px; cursor:pointer; }
   .row-check{ flex-shrink:0; width:13px; height:13px; accent-color: var(--amber); cursor:pointer; margin:0; }
 
+  .table-foot{ background:#fcfcfb; border:1px solid var(--line); border-radius:10px; margin-top:10px; padding:12px 16px; font-size:0.76rem; line-height:1.55; color: var(--ink-faint); }
+  .table-foot b{ color: var(--ink-soft); font-weight:600; }
+  .hint-mark{ color: var(--ink-faint); font-size:0.68rem; cursor:help; }
+
   .resizer{ position:absolute; top:0; right:0; width:6px; height:100%; cursor:col-resize; user-select:none; z-index:6; }
   .resizer:hover{ background: var(--accent-soft); }
 </style>
@@ -121,6 +125,9 @@
       <thead><tr><th class="row-label-col"></th><th>A</th><th>B</th><th>Δ (B−A)</th></tr></thead>
       <tbody id="delta-panel-body"></tbody>
     </table>
+    <div class="table-foot" style="border:none;border-top:1px solid var(--line);margin-top:0;border-radius:0;">
+      Lignes Cash : flux rémunération uniquement, hors dividendes nets. Mensuel = annuel / 12 (repère lissé, pas un échéancier). Revenu net en poche = après PER et après IR.
+    </div>
   </div>
 </div>
 
@@ -222,11 +229,7 @@ function calculerScenario(scn, params, bareme) {
   const div = calculDividendes(dividendesBruts, remBrute, params);
 
   // ---- 2. Société ----
-  // produitsFinanciers = produit financier (ex : écart de valeur liquidative ETF société,
-  // art. 209-0 A CGI, taxé à l'IS chaque année que réalisé ou non). Ce n'est pas du CA
-  // (pas de facturation, pas de cotisations TNS dessus) mais ça entre bien dans le résultat
-  // imposable IS — d'où l'ajout ici et non dans scn.CA.
-  const resultatAvantIS = scn.CA - scn.charges - remBrute + (scn.produitsFinanciers || 0);
+  const resultatAvantIS = scn.CA - scn.charges - remBrute;
   const isReduit = Math.min(Math.max(resultatAvantIS, 0), params.seuilISReduit) * params.tauxISReduit;
   const isNormal = Math.max(resultatAvantIS - params.seuilISReduit, 0) * params.tauxISNormal;
   const IS = isReduit + isNormal;
@@ -259,7 +262,13 @@ function calculerScenario(scn, params, bareme) {
   const TMI = trouverTMI(revenuImposable, bareme);
 
   // ---- 6. Résultats finaux ----
-  const cashApresPER = remNette - scn.per154 - scn.per163;
+  // Cascade cash (cf Notion §8 "Cash") : le 154 ne transite jamais par le compte perso (la
+  // société vire directement à l'assureur), le 163 si — il est encaissé puis ressort.
+  // Périmètre volontairement limité au flux rémunération : les dividendes nets n'entrent ni
+  // dans le virement ni dans le cash dispo, ils n'apparaissent que dans le revenu net en poche.
+  const virementPerso = remNette - scn.per154;
+  const cashApresPER = virementPerso - scn.per163;
+  const epargnePER = scn.per154 + scn.per163;
   const revenuNetEnPoche = cashApresPER - IR + div.netDividendes;
   const totalPrelevements = cotRem.total + IS + IR + div.totalPrelevementsDividendes;
   const tauxPrelevementGlobal = scn.CA > 0 ? totalPrelevements / scn.CA : 0;
@@ -272,7 +281,10 @@ function calculerScenario(scn, params, bareme) {
     plafond154_15, plafond154_10, strate15Utilisee, strate10Utilisee, per154Depasse,
     revenuImposable, IR, TMI,
     ...div,
-    cashApresPER, revenuNetEnPoche, totalPrelevements, tauxPrelevementGlobal,
+    virementPerso, virementPersoMensuel: virementPerso / 12,
+    cashApresPER, cashApresPERMensuel: cashApresPER / 12,
+    epargnePER,
+    revenuNetEnPoche, totalPrelevements, tauxPrelevementGlobal,
   };
 }
 
@@ -328,7 +340,7 @@ let tokenClient, accessToken = null, tokenExpiresAt = 0;
 
 // Structure des 3 onglets : header en row 5 (row 4 pour Barème IR), data à partir de la ligne suivante.
 const SHEETS = {
-  scenarios: { name: "Scénarios",           headerRow: 5, width: 13 }, // A:M
+  scenarios: { name: "Scénarios",           headerRow: 5, width: 12 }, // A:L
   params:    { name: "Paramètres annuels",  headerRow: 5, width: 22 }, // A:V
   bareme:    { name: "Barème IR",           headerRow: 4, width: 4  }, // A:D
 };
@@ -507,7 +519,7 @@ function scenarioFromRow(r){
     id: cell(r,0), nom: cell(r,1), ordre: num(r,2), annee: parseInt(cell(r,3),10) || 0,
     CA: num(r,4), charges: num(r,5), remNette: num(r,6),
     per154: num(r,7), per163: num(r,8), dividendes: num(r,9), notes: cell(r,10),
-    microFoncier: num(r,11), produitsFinanciers: num(r,12),
+    microFoncier: num(r,11),
   };
 }
 
@@ -519,7 +531,6 @@ function fmtPct(v){ return (v*100).toLocaleString('fr-FR', {maximumFractionDigit
 const COMPUTED_ROWS = [
   { section: 'Société' },
   { metric:'remBrute', label:'Rémunération brute retrouvée' },
-  { metric:'resultatAvantIS', label:'Bénéfice avant IS' },
   { metric:'IS', label:'IS' },
   { metric:'beneficeNet', label:'Trésorerie restante (bénéfice net)' },
   { section: 'Cotisations & 1GB' },
@@ -533,15 +544,22 @@ const COMPUTED_ROWS = [
   { metric:'revenuImposable', label:'Revenu imposable' },
   { metric:'IR', label:'IR' },
   { metric:'TMI', label:'Tranche marginale d\'imposition (TMI)', isPct:true },
+  { section: 'Cash' },
+  { metric:'virementPerso', label:'Virement société → compte perso',
+    hint:"Rémunération nette − 154 bis. Le 154 ne transite jamais par le compte perso : la société le vire directement à l'assureur. Hors dividendes." },
+  { metric:'cashAvantIR', label:'Cash dispo avant IR',
+    hint:"Virement − 163 (encaissé sur le compte perso puis viré à l'assureur). Hors dividendes nets. Mensuel = annuel / 12, repère lissé et non échéancier." },
   { section: 'Résultat', highlight:true },
-  { metric:'revenuNetEnPoche', label:'Revenu net en poche', big:true },
+  { metric:'revenuNetEnPoche', label:'Revenu net en poche', big:true,
+    hint:"Après versements PER (154 + 163) ET après IR. Ce n'est pas le revenu net économique : le PER reste ton épargne — cf. ligne « Épargne PER de l'année » juste en dessous." },
+  { metric:'epargnePER', label:"Épargne PER de l'année (154 + 163)",
+    hint:"Montant sorti du cash disponible mais qui reste ton patrimoine, immobilisé jusqu'à 64 ans. Revenu net économique ≈ revenu net en poche + cette ligne." },
   { metric:'totalPrelevements', label:'Total cotisations + IS + IR' },
   { metric:'tauxGlobal', label:'Taux de prélèvement global (/CA)', isPct:true },
 ];
 
 const INPUT_ROWS = [
   { key:'CA', label:'CA', col:4 },
-  { key:'produitsFinanciers', label:'Produits financiers (PV latente ETF, etc.)', col:12 },
   { key:'charges', label:'Charges', col:5 },
   { key:'remNette', label:'Rémunération nette', col:6 },
   { key:'per154', label:'154 bis versé', col:7 },
@@ -572,13 +590,16 @@ let SCENARIOS_CACHE = []; // dernière liste de scénarios rendue, pour recalcul
 function computeMetrics(r){
   if(!r) return null;
   return {
-    remBrute: r.remBrute, resultatAvantIS: r.resultatAvantIS, IS: r.IS, beneficeNet: r.beneficeNet,
+    remBrute: r.remBrute, IS: r.IS, beneficeNet: r.beneficeNet,
     cotisTotal: r.total, un_GB: r.un_GB,
     strate15: fmtEuro(r.strate15Utilisee) + ' <span class="suffix">/ ' + fmtEuro(r.plafond154_15) + '</span>',
     strate10: fmtEuro(r.strate10Utilisee) + ' <span class="suffix">/ ' + fmtEuro(r.plafond154_10) + '</span>',
     depasse154: r.per154Depasse ? '⚠️ dépassement' : '—',
     revenuImposable: r.revenuImposable, IR: r.IR,
     TMI: fmtPct(r.TMI),
+    virementPerso: fmtEuro(r.virementPerso) + ' <span class="suffix">· ' + fmtEuro(r.virementPersoMensuel) + '/mois</span>',
+    cashAvantIR: fmtEuro(r.cashApresPER) + ' <span class="suffix">· ' + fmtEuro(r.cashApresPERMensuel) + '/mois</span>',
+    epargnePER: r.epargnePER,
     revenuNetEnPoche: r.revenuNetEnPoche, totalPrelevements: r.totalPrelevements,
     tauxGlobal: fmtPct(r.tauxPrelevementGlobal),
   };
@@ -641,7 +662,8 @@ function renderAll(){
       html += '</tr>';
       return;
     }
-    html += `<tr class="${def.highlight?'highlight-row':''}"><td class="row-label-col">${def.label}</td>`;
+    const hint = def.hint ? ` title="${escapeAttr(def.hint)}"` : '';
+    html += `<tr class="${def.highlight?'highlight-row':''}"><td class="row-label-col"${hint}>${def.label}${def.hint?' <span class="hint-mark">ⓘ</span>':''}</td>`;
     SCENARIOS_CACHE.forEach(scn => {
       html += `<td class="computed-cell ${def.big?'big-cell':''}" data-row="${scn.rowIndex}" data-metric="${def.metric}">…</td>`;
     });
@@ -649,6 +671,12 @@ function renderAll(){
   });
 
   html += '</tbody></table></div>';
+  html += `<div class="table-foot">
+    <b>Cash</b> — la section Cash suit le <b>flux rémunération uniquement</b> : rém. nette − 154 bis = virement société → compte perso, − 163 = cash dispo avant IR.
+    Les <b>dividendes nets n'y figurent pas</b> (ils n'apparaissent que dans le revenu net en poche, déjà nets de PFU).
+    Le mensuel est l'annuel divisé par 12 — un repère lissé pour le rapprochement avec la trésorerie, <b>pas un échéancier</b> (le 163 se verse souvent en une fois).
+    <br><b>Revenu net en poche</b> — c'est le cash libre <b>après versements PER (154 + 163) et après IR</b>. Ce n'est pas le revenu net économique : le PER reste ton épargne, immobilisée jusqu'à 64 ans. Revenu net économique ≈ cette ligne + « Épargne PER de l'année ».
+  </div>`;
   wrap.innerHTML = html;
 
   wrap.querySelectorAll('input.cell-input').forEach(inp => {
@@ -763,7 +791,7 @@ async function onDuplicateScenario(e){
   if(!scn) return;
   const nouvelId = 'scn_' + Date.now().toString(36);
   const values = [[nouvelId, scn.nom + ' (copie)', SCENARIOS_CACHE.length + 1, scn.annee,
-                   scn.CA, scn.charges, scn.remNette, scn.per154, scn.per163, scn.dividendes, scn.notes || '', scn.microFoncier || 0, scn.produitsFinanciers || 0]];
+                   scn.CA, scn.charges, scn.remNette, scn.per154, scn.per163, scn.dividendes, scn.notes || '', scn.microFoncier || 0]];
   const range = `${SHEETS.scenarios.name}!A:${colLetter(SHEETS.scenarios.width-1)}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
   try{
@@ -790,7 +818,7 @@ document.getElementById('btn-add-scenario').addEventListener('click', async () =
   const anneeParDefaut = new Date().getFullYear();
   const nouvelId = 'scn_' + Date.now().toString(36);
   const ordre = DATA.scenarios.length + 1;
-  const values = [[nouvelId, nom || 'Nouveau scénario', ordre, anneeParDefaut, 0, 0, 0, 0, 0, 0, '', 0, 0]];
+  const values = [[nouvelId, nom || 'Nouveau scénario', ordre, anneeParDefaut, 0, 0, 0, 0, 0, 0, '', 0]];
   const range = `${SHEETS.scenarios.name}!A:${colLetter(SHEETS.scenarios.width-1)}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
   try{
@@ -805,7 +833,6 @@ document.getElementById('btn-add-scenario').addEventListener('click', async () =
 const DELTA_ROWS = [
   ...INPUT_ROWS.map(d => ({ key: d.key, label: d.label, fromScn: true, fmt: 'euro', dir: 'neutral' })),
   { key:'remBrute', label:'Rémunération brute retrouvée', fmt:'euro', dir:'neutral' },
-  { key:'resultatAvantIS', label:'Bénéfice avant IS', fmt:'euro', dir:'higherBetter' },
   { key:'IS', label:'IS', fmt:'euro', dir:'lowerBetter' },
   { key:'beneficeNet', label:'Trésorerie restante (bénéfice net)', fmt:'euro', dir:'higherBetter' },
   { key:'total', label:'Cotisations sociales', fmt:'euro', dir:'lowerBetter' },
@@ -814,6 +841,11 @@ const DELTA_ROWS = [
   { key:'IR', label:'IR', fmt:'euro', dir:'lowerBetter' },
   { key:'TMI', label:'TMI', fmt:'pct', dir:'lowerBetter' },
   { key:'netDividendes', label:'Net dividendes', fmt:'euro', dir:'higherBetter' },
+  { key:'virementPerso', label:'Virement société → perso (an)', fmt:'euro', dir:'neutral' },
+  { key:'virementPersoMensuel', label:'Virement société → perso (mois)', fmt:'euro', dir:'neutral' },
+  { key:'cashApresPER', label:'Cash dispo avant IR (an)', fmt:'euro', dir:'neutral' },
+  { key:'cashApresPERMensuel', label:'Cash dispo avant IR (mois)', fmt:'euro', dir:'neutral' },
+  { key:'epargnePER', label:'Épargne PER de l\'année (154 + 163)', fmt:'euro', dir:'neutral' },
   { key:'revenuNetEnPoche', label:'Revenu net en poche', fmt:'euro', dir:'higherBetter' },
   { key:'totalPrelevements', label:'Total prélèvements', fmt:'euro', dir:'lowerBetter' },
   { key:'tauxPrelevementGlobal', label:'Taux prélèvement global', fmt:'pct', dir:'lowerBetter' },
