@@ -146,6 +146,12 @@
   input:focus, textarea:focus{ outline:none; box-shadow: 0 0 0 1px var(--accent-border); border-color: var(--accent-border); }
   .field-label{ font-size:12px; color: var(--ink-faint); display:block; margin:0 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #entry-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px 8px; margin-bottom:14px; }
+  .prev-hint{ display:block; font-size:11px; color: var(--ink-faint); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-height:14px; }
+  .prev-hint b{ font-weight:600; }
+  .prev-hint .delta{ color: var(--ink); font-weight:600; }
+  #mes-ref-head{ font-size:12px; color: var(--ink-faint); line-height:1.5; margin:0 0 12px; }
+  #mes-ref-head b{ color: var(--ink); font-weight:600; }
+  #dup-banner{ display:none; background:#fdf6e7; border:1px solid #e3cf9a; color:#7a5c17; font-size:12px; line-height:1.5; padding:10px 12px; border-radius:8px; margin-bottom:14px; }
   input[type=date]{ max-width:150px; color-scheme: dark; margin-bottom:16px; }
   .note-input{ margin-bottom:16px !important; margin-top:4px !important; }
   .btn-row{ display:flex; gap:8px; }
@@ -280,6 +286,7 @@
   </div>
 
   <div id="app" style="display:none;">
+    <div id="dup-banner"></div>
     <div id="tabs">
       <button id="tab-cal" class="active">Calendrier</button>
       <button id="tab-mes">Mesures</button>
@@ -324,7 +331,7 @@
         <input type="text" id="daily-note" class="note-input" placeholder="Note (optionnel)">
         <div class="btn-row">
           <button class="primary" id="daily-save">Enregistrer</button>
-          <button class="danger" id="daily-delete">Supprimer</button>
+          <button class="danger" id="daily-delete">Supprimer la journée</button>
         </div>
       </div>
 
@@ -353,7 +360,7 @@
         <input type="text" id="alim-note" class="note-input" placeholder="Note (optionnel)">
         <div class="btn-row">
           <button class="primary" id="alim-save">Enregistrer</button>
-          <button class="danger" id="alim-delete">Supprimer</button>
+          <button class="danger" id="alim-delete">Supprimer l'alim</button>
         </div>
       </div>
 
@@ -401,6 +408,7 @@
 
       <div class="card">
         <input type="date" id="mes-date" style="margin-bottom:12px;max-width:170px;">
+        <p id="mes-ref-head"></p>
         <div id="entry-grid"></div>
         <input type="text" id="mes-note" class="note-input" placeholder="Note (optionnel)">
         <div class="btn-row">
@@ -455,6 +463,7 @@ let tokenClient, accessToken = null, tokenExpiresAt = 0;
 let dailyRows = [];   // {rowIndex, date, sport:[], diet, note}
 let mesRows = [];     // {rowIndex, date, vals:[11], note}
 let alimRows = [];    // {rowIndex, date, kcalTotal, protTotale, note}
+let sheetIds = {};    // titre d'onglet -> sheetId numérique (requis pour supprimer une ligne)
 let dailyByDate = {};
 let mesByDate = {};
 let alimByDate = {};
@@ -503,6 +512,8 @@ const els = {
   objectifKcalInput: document.getElementById('objectif-kcal-input'),
   mesDate: document.getElementById('mes-date'),
   entryGrid: document.getElementById('entry-grid'),
+  mesRefHead: document.getElementById('mes-ref-head'),
+  dupBanner: document.getElementById('dup-banner'),
   mesNote: document.getElementById('mes-note'),
   mesSave: document.getElementById('mes-save'),
   mesDelete: document.getElementById('mes-delete'),
@@ -591,6 +602,59 @@ async function apiFetch(url, options={}, _retried){
   return res.json();
 }
 
+/* ---------- Écriture Sheets : helpers ---------- */
+
+// Supprime physiquement la ligne (et non un simple vidage) puis recale les index mémorisés.
+async function deleteSheetRow(sheetName, rowIndex, rowsArr){
+  const sheetId = sheetIds[sheetName];
+  if(sheetId === undefined) throw new Error(`onglet "${sheetName}" introuvable (identifiants non chargés)`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`;
+  await apiFetch(url, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ requests:[{ deleteDimension:{ range:{ sheetId, dimension:'ROWS', startIndex: rowIndex-1, endIndex: rowIndex } } }] })
+  });
+  (rowsArr||[]).forEach(r => { if(r.rowIndex > rowIndex) r.rowIndex--; });
+}
+
+// Relit la colonne A de l'onglet : ferme le trou des doublons même si la mémoire locale a dérivé.
+async function findRowByDate(sheetName, date){
+  const range = `${sheetName}!A1:A`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}`;
+  const res = await apiFetch(url);
+  const vals = res.values || [];
+  for(let i = vals.length-1; i >= 1; i--){
+    if(vals[i] && String(vals[i][0]).trim() === date) return i+1;
+  }
+  return null;
+}
+
+// Conserve la ligne la plus renseignée pour chaque date, supprime les surnuméraires.
+async function dedupeSheet(sheetName, rows, scoreFn){
+  const groups = {};
+  rows.forEach(r => { (groups[r.date] = groups[r.date] || []).push(r); });
+  const toDelete = [];
+  const dates = [];
+  Object.keys(groups).forEach(d => {
+    const list = groups[d];
+    if(list.length < 2) return;
+    let best = list[0];
+    list.forEach(r => { if(scoreFn(r) >= scoreFn(best)) best = r; });
+    list.forEach(r => { if(r !== best) toDelete.push(r); });
+    dates.push(d);
+  });
+  if(!toDelete.length) return { rows, dates: [] };
+  toDelete.sort((a,b) => b.rowIndex - a.rowIndex);
+  for(const r of toDelete){ await deleteSheetRow(sheetName, r.rowIndex, rows); }
+  return { rows: rows.filter(r => toDelete.indexOf(r) === -1), dates };
+}
+
+function showDupBanner(msgs){
+  if(!msgs.length){ els.dupBanner.style.display = "none"; return; }
+  els.dupBanner.innerHTML = "Doublons nettoyés au chargement : " + msgs.join(" · ") +
+    "<br>La ligne la plus complète a été conservée pour chaque date.";
+  els.dupBanner.style.display = "block";
+}
+
 function onSignedIn(){
   els.authBar.style.display = "none";
   els.app.style.display = "block";
@@ -622,6 +686,14 @@ async function loadAll(){
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?ranges=${encodeURIComponent(SHEET_DAILY+'!A1:D')}&ranges=${encodeURIComponent(SHEET_MES+'!A1:M')}&ranges=${encodeURIComponent(SHEET_ALIM+'!A1:R')}&ranges=${encodeURIComponent(SHEET_PRODUITS+'!A1:D')}&ranges=${encodeURIComponent(SHEET_PARAM+'!A1:B')}`;
     const data = await apiFetch(url);
     const [dv, mv, av, pv, prmv] = data.valueRanges.map(r => r.values || []);
+
+    // Appel isolé : un échec ici ne doit pas casser le chargement des données.
+    try{
+      const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties(sheetId,title)`;
+      const meta = await apiFetch(metaUrl);
+      sheetIds = {};
+      (meta.sheets||[]).forEach(s => { sheetIds[s.properties.title] = s.properties.sheetId; });
+    }catch(e){ sheetIds = {}; }
 
     PRODUITS = [];
     for(let i=1;i<pv.length;i++){
@@ -676,6 +748,30 @@ async function loadAll(){
       alimRows.push(entry);
       alimByDate[entry.date] = entry;
     }
+
+    const dupMsgs = [];
+    if(Object.keys(sheetIds).length){
+      try{
+        const rd = await dedupeSheet(SHEET_DAILY, dailyRows, r => (r.sport.length?1:0) + (r.diet?1:0) + (r.note?1:0));
+        dailyRows = rd.rows;
+        if(rd.dates.length) dupMsgs.push("Suivi quotidien (" + rd.dates.join(", ") + ")");
+
+        const rm = await dedupeSheet(SHEET_MES, mesRows, r => r.vals.filter(v => v!==null).length + (r.note?1:0));
+        mesRows = rm.rows;
+        if(rm.dates.length) dupMsgs.push("Mesures (" + rm.dates.join(", ") + ")");
+
+        const ra = await dedupeSheet(SHEET_ALIM, alimRows, r => (r.kcalTotal?1:0) + (r.protTotale?1:0) + (r.note?1:0));
+        alimRows = ra.rows;
+        if(ra.dates.length) dupMsgs.push("Alimentation (" + ra.dates.join(", ") + ")");
+
+        if(dupMsgs.length){
+          dailyByDate = {}; dailyRows.forEach(r => { dailyByDate[r.date] = r; });
+          mesByDate = {};   mesRows.forEach(r => { mesByDate[r.date] = r; });
+          alimByDate = {};  alimRows.forEach(r => { alimByDate[r.date] = r; });
+        }
+      }catch(e){ dupMsgs.length = 0; }
+    }
+    showDupBanner(dupMsgs);
 
     setStatus("");
     renderCalendar();
@@ -826,11 +922,18 @@ async function saveDaily(){
     await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[rowValues]}) });
     existing.sport = [...selectedSports]; existing.diet = selectedDiet||""; existing.note = els.dailyNote.value;
   } else {
-    const range = `${SHEET_DAILY}!A1:D1`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
-    const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
-    const updatedRange = res.updates.updatedRange;
-    const rowIndex = parseInt(updatedRange.match(/(\d+)(?::|$)/)[1]);
+    // La date existe peut-être déjà dans le Sheet sans être en mémoire : on écrase plutôt que d'ajouter.
+    let rowIndex = await findRowByDate(SHEET_DAILY, selectedDailyDate);
+    if(rowIndex){
+      const range = `${SHEET_DAILY}!A${rowIndex}:D${rowIndex}`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+      await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[rowValues]}) });
+    } else {
+      const range = `${SHEET_DAILY}!A1:D1`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+      const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
+      rowIndex = parseInt(res.updates.updatedRange.match(/(\d+)(?::|$)/)[1]);
+    }
     const entry = { rowIndex, date:selectedDailyDate, sport:[...selectedSports], diet:selectedDiet||"", note: els.dailyNote.value };
     dailyRows.push(entry);
     dailyByDate[selectedDailyDate] = entry;
@@ -847,17 +950,33 @@ els.dailySave.addEventListener('click', async () => {
 
 els.dailyDelete.addEventListener('click', async () => {
   if(!selectedDailyDate) return;
-  const existing = dailyByDate[selectedDailyDate];
-  if(!existing){ selectedSports=[]; selectedDiet=null; dietAutoMode=true; els.dailyNote.value=""; renderSportChips(); renderAlimTotals(); return; }
+  const existingDaily = dailyByDate[selectedDailyDate];
+  const existingAlim  = alimByDate[selectedDailyDate];
+  if(!existingDaily && !existingAlim){
+    selectedSports=[]; selectedDiet=null; dietAutoMode=true; els.dailyNote.value="";
+    renderSportChips(); loadAlimFormForDate(selectedDailyDate); return;
+  }
+  const quoi = [existingDaily ? "sport/diète" : null, existingAlim ? "alimentation" : null].filter(Boolean).join(" + ");
+  if(!confirm(`Supprimer la journée du ${selectedDailyDate} (${quoi}) ?`)) return;
   setStatus("Suppression...");
   try{
-    const range = `${SHEET_DAILY}!A${existing.rowIndex}:D${existing.rowIndex}`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-    await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[["","","",""]]}) });
-    delete dailyByDate[selectedDailyDate];
-    dailyRows = dailyRows.filter(r => r !== existing);
+    // Du bas vers le haut : supprimer une ligne décale toutes celles qui suivent.
+    const cibles = [];
+    if(existingDaily) cibles.push({ sheet:SHEET_DAILY, rows:() => dailyRows, entry:existingDaily });
+    if(existingAlim)  cibles.push({ sheet:SHEET_ALIM,  rows:() => alimRows,  entry:existingAlim });
+    for(const c of cibles){
+      await deleteSheetRow(c.sheet, c.entry.rowIndex, c.rows());
+      if(c.sheet === SHEET_DAILY){
+        delete dailyByDate[selectedDailyDate];
+        dailyRows = dailyRows.filter(r => r !== c.entry);
+      } else {
+        delete alimByDate[selectedDailyDate];
+        alimRows = alimRows.filter(r => r !== c.entry);
+      }
+    }
     selectedSports=[]; selectedDiet=null; dietAutoMode=true; els.dailyNote.value="";
-    renderSportChips(); renderAlimTotals(); renderCalendar();
+    renderSportChips(); loadAlimFormForDate(selectedDailyDate);
+    renderCalendar(); renderAlimChart(); renderKcalChart();
     setStatus(""); showSaved();
   }catch(e){ setStatus("Erreur : " + e.message, true); }
 });
@@ -917,11 +1036,17 @@ els.alimSave.addEventListener('click', async () => {
       existing.protTotale = prot ? Math.round(prot) : 0;
       existing.note = els.alimNote.value;
     } else {
-      const range = `${SHEET_ALIM}!A1:R1`;
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
-      const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
-      const updatedRange = res.updates.updatedRange;
-      const rowIndex = parseInt(updatedRange.match(/(\d+)(?::|$)/)[1]);
+      let rowIndex = await findRowByDate(SHEET_ALIM, selectedDailyDate);
+      if(rowIndex){
+        const range = `${SHEET_ALIM}!A${rowIndex}:R${rowIndex}`;
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+        await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[rowValues]}) });
+      } else {
+        const range = `${SHEET_ALIM}!A1:R1`;
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+        const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
+        rowIndex = parseInt(res.updates.updatedRange.match(/(\d+)(?::|$)/)[1]);
+      }
       const entry = {
         rowIndex, date:selectedDailyDate,
         kcalTotal: kcal ? Math.round(kcal) : 0, protTotale: prot ? Math.round(prot) : 0,
@@ -938,12 +1063,10 @@ els.alimDelete.addEventListener('click', async () => {
   if(!selectedDailyDate) return;
   const existing = alimByDate[selectedDailyDate];
   if(!existing){ loadAlimFormForDate(selectedDailyDate); return; }
+  if(!confirm(`Supprimer la saisie alimentation du ${selectedDailyDate} ?`)) return;
   setStatus("Suppression...");
   try{
-    const range = `${SHEET_ALIM}!A${existing.rowIndex}:R${existing.rowIndex}`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-    const blank = Array(18).fill("");
-    await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[blank]}) });
+    await deleteSheetRow(SHEET_ALIM, existing.rowIndex, alimRows);
     delete alimByDate[selectedDailyDate];
     alimRows = alimRows.filter(r => r !== existing);
     loadAlimFormForDate(selectedDailyDate);
@@ -1114,9 +1237,62 @@ function buildEntryGrid(){
     input.inputMode = 'decimal';
     input.placeholder = UNITS[i];
     input.id = 'mes-in-'+i;
+    input.addEventListener('input', renderMesRefs);
+    const hint = document.createElement('span');
+    hint.className = 'prev-hint';
+    hint.id = 'mes-prev-'+i;
     cell.appendChild(label);
     cell.appendChild(input);
+    cell.appendChild(hint);
     els.entryGrid.appendChild(cell);
+  });
+}
+
+/* Rappel de la dernière mesure antérieure + écart en direct.
+   Pas de seuil d'alerte : c'est le contexte (sport du jour) qui permet de juger. */
+function fmtNum(n){ return String(Math.round(n*10)/10).replace('.', ','); }
+
+function refMesEntry(fr){
+  const target = frToISO(fr);
+  let best = null;
+  mesRows.forEach(r => {
+    const iso = frToISO(r.date);
+    if(iso >= target) return;
+    if(!best || iso > frToISO(best.date)) best = r;
+  });
+  return best;
+}
+
+function sportLabel(fr){
+  const d = dailyByDate[fr];
+  return (d && d.sport.length) ? d.sport.join(", ") : "";
+}
+
+function renderMesRefs(){
+  if(!els.mesDate.value) return;
+  const fr = isoToFR(els.mesDate.value);
+  const ref = refMesEntry(fr);
+  const sportJour = sportLabel(fr);
+  const ligneJour = `Jour mesuré : <b>${fr}</b>` + (sportJour ? ` — sport : <b>${sportJour}</b>` : " — aucun sport enregistré");
+  if(!ref){
+    els.mesRefHead.innerHTML = ligneJour + "<br>Aucune mesure antérieure : pas de comparaison possible.";
+  } else {
+    const sportRef = sportLabel(ref.date);
+    els.mesRefHead.innerHTML = ligneJour +
+      `<br>Référence : <b>${ref.date}</b>` + (sportRef ? ` — sport : <b>${sportRef}</b>` : " — aucun sport enregistré");
+  }
+  METRICS.forEach((m,i) => {
+    const hint = document.getElementById('mes-prev-'+i);
+    if(!hint) return;
+    const prev = ref ? ref.vals[i] : null;
+    if(prev === null || prev === undefined || isNaN(prev)){ hint.innerHTML = "&nbsp;"; return; }
+    const prevTxt = `réf. <b>${fmtNum(prev)}</b>`;
+    const raw = (document.getElementById('mes-in-'+i).value || "").trim().replace(',', '.');
+    const cur = raw !== "" ? parseFloat(raw) : NaN;
+    if(isNaN(cur)){ hint.innerHTML = prevTxt; return; }
+    const d = cur - prev;
+    if(Math.abs(d) < 0.05){ hint.innerHTML = `${prevTxt} · <span class="delta">=</span>`; return; }
+    hint.innerHTML = `${prevTxt} · <span class="delta">${d > 0 ? "+" : "−"}${fmtNum(Math.abs(d))}</span>`;
   });
 }
 
@@ -1168,6 +1344,7 @@ function loadMesFormForDate(iso){
     document.getElementById('mes-in-'+i).value = entry && entry.vals[i]!==null ? entry.vals[i] : "";
   });
   els.mesNote.value = entry ? entry.note : "";
+  renderMesRefs();
   renderMesCalendar();
 }
 els.mesDate.addEventListener('change', () => {
@@ -1190,16 +1367,22 @@ els.mesSave.addEventListener('click', async () => {
       existing.vals = vals.map(v => v!=="" ? parseFloat(v.replace(',','.')) : null);
       existing.note = els.mesNote.value;
     } else {
-      const range = `${SHEET_MES}!A1:M1`;
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
-      const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
-      const updatedRange = res.updates.updatedRange;
-      const rowIndex = parseInt(updatedRange.match(/(\d+)(?::|$)/)[1]);
+      let rowIndex = await findRowByDate(SHEET_MES, fr);
+      if(rowIndex){
+        const range = `${SHEET_MES}!A${rowIndex}:M${rowIndex}`;
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+        await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[rowValues]}) });
+      } else {
+        const range = `${SHEET_MES}!A1:M1`;
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+        const res = await apiFetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({values:[rowValues]}) });
+        rowIndex = parseInt(res.updates.updatedRange.match(/(\d+)(?::|$)/)[1]);
+      }
       const entry = { rowIndex, date:fr, vals: vals.map(v => v!=="" ? parseFloat(v.replace(',','.')) : null), note: els.mesNote.value };
       mesRows.push(entry);
       mesByDate[fr] = entry;
     }
-    setStatus(""); showSaved(); renderChart(); renderMesCalendar();
+    setStatus(""); showSaved(); renderChart(); renderMesCalendar(); renderMesRefs();
   }catch(e){ setStatus("Erreur : " + e.message, true); }
 });
 
@@ -1207,12 +1390,10 @@ els.mesDelete.addEventListener('click', async () => {
   const fr = isoToFR(els.mesDate.value);
   const existing = mesByDate[fr];
   if(!existing){ loadMesFormForDate(els.mesDate.value); return; }
+  if(!confirm(`Supprimer la mesure du ${fr} ? Elle n'est pas récupérable.`)) return;
   setStatus("Suppression...");
   try{
-    const range = `${SHEET_MES}!A${existing.rowIndex}:M${existing.rowIndex}`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-    const blank = Array(13).fill("");
-    await apiFetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({range, values:[blank]}) });
+    await deleteSheetRow(SHEET_MES, existing.rowIndex, mesRows);
     delete mesByDate[fr];
     mesRows = mesRows.filter(r => r !== existing);
     loadMesFormForDate(els.mesDate.value);
