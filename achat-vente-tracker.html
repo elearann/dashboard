@@ -1059,24 +1059,18 @@ function renderEvent(){
 
   // KPI band (sur les lignes filtrées)
   const claims = rows.length;
-  const claimsEnCours = rows.filter(r => cell(r,3) === 'En cours').length;
   const initSum = rows.reduce((s,r)=>s+num(r,4),0);
   const frais = rows.reduce((s,r)=>s+num(r,6)+num(r,7)+num(r,8),0);
   const total = rows.reduce((s,r)=>s+eventRowTotal(r),0);
   const nbPC = rows.reduce((s,r)=>s+num(r,10),0);
   const coutParPC = nbPC ? total/nbPC : 0;
-  const nbProduits = rows.reduce((s,r)=>s+num(r,16),0);
-  const coutParProduit = nbProduits ? total/nbProduits : 0;
   document.getElementById('event-kpi').innerHTML = `
     <div class="kpi-card"><div class="label">Claims</div><div class="value neutral">${claims}</div></div>
-    <div class="kpi-card"><div class="label">Claims en cours</div><div class="value neutral">${claimsEnCours}</div></div>
     <div class="kpi-card"><div class="label">Coût initial</div><div class="value neutral">${fmtEuro(initSum)}</div></div>
     <div class="kpi-card"><div class="label">Frais (EMS+custom+dom)</div><div class="value neutral">${fmtEuro(frais)}</div></div>
     <div class="kpi-card"><div class="label">Coût total</div><div class="value">${fmtEuro(total)}</div></div>
     <div class="kpi-card"><div class="label">Nb PC</div><div class="value neutral">${nbPC}</div></div>
     <div class="kpi-card"><div class="label">Coût moyen / PC</div><div class="value">${coutParPC ? coutParPC.toFixed(2)+' €' : '—'}</div></div>
-    <div class="kpi-card"><div class="label">Nb produits</div><div class="value neutral">${nbProduits}</div></div>
-    <div class="kpi-card"><div class="label">Coût moyen / produit</div><div class="value">${coutParProduit ? coutParProduit.toFixed(2)+' €' : '—'}</div></div>
   `;
 
   // Groupes par Event (clé = ID, libellé affiché = nom résolu)
@@ -1096,12 +1090,24 @@ function renderEvent(){
     const label = g ? evcbName(g) : '(sans event)';
     const gTotal = grows.reduce((s,r)=>s+eventRowTotal(r),0);
     const gPC = grows.reduce((s,r)=>s+num(r,10),0);
+    const gEnCours = grows.filter(r => cell(r,3) === 'En cours').length;
+    const gProd = grows.reduce((s,r)=>s+num(r,16),0);
     return `
     <div class="group ${isGroupCollapsed('event', g) ? 'collapsed' : ''}" data-group="${escapeAttr(g)}">
       <div class="group-head">
         <div class="collapse-btn" onclick="toggleGroupCollapse('event', '${escapeAttr(g)}', this)">▾</div>
         <div class="title">${escapeHtml(label)}</div>
-        <div class="sub-kpis"><span>${grows.length} claims · <b>${fmtEuro(gTotal)}</b> · ${gPC} PC</span></div>
+        <div class="sub-kpis-2l">
+          <div class="kline">
+            <span>${grows.length} claims${gEnCours ? ' · ' + gEnCours + ' en cours' : ''} · <b>${fmtEuro(gTotal)}</b></span>
+          </div>
+          <div class="kline">
+            <span>${gPC} PC</span>
+            <span>€/PC <b>${gPC ? (gTotal/gPC).toFixed(2)+' €' : '—'}</b></span>
+            <span>${gProd} produits</span>
+            <span>€/produit <b>${gProd ? (gTotal/gProd).toFixed(2)+' €' : '—'}</b></span>
+          </div>
+        </div>
       </div>
       <div class="table-scroll"><table class="event-table resizable-table">
         <thead><tr>
