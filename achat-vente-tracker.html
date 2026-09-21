@@ -152,6 +152,7 @@
     border-right:2px solid transparent;
   }
   .col-resizer:hover, .col-resizer.active{ border-right-color: var(--accent); }
+  thead th.sortable{ cursor:pointer; user-select:none; }
   thead th{
     text-align:left; font-size:0.6rem; text-transform:uppercase; letter-spacing:0.03em; color: var(--ink-faint);
     font-weight:600; padding:7px 6px; border-bottom:1px solid var(--line); white-space:nowrap;
@@ -458,7 +459,14 @@
       <div class="toolbar-actions"><button onclick="openGomModal()">+ Ajouter</button></div>
     </div>
     <div class="table-scroll ref-table"><table class="gom-table resizable-table">
-      <thead><tr><th>Nom GOM / Seller</th><th>Lieu</th><th>Canal</th><th>Commentaire</th></tr></thead>
+      <thead><tr>
+        <th class="sortable" onclick="toggleGomSort()" title="Trier A→Z / Z→A / ordre naturel">Nom GOM / Seller <span id="gom-sort-arrow"></span></th>
+        <th>Lieu</th><th>Canal</th><th>Commentaire</th>
+        <th title="Nombre de claims Event">Claims Event</th>
+        <th title="Nombre de claims CB">Claims CB</th>
+        <th title="% frais moyen pondéré (Σ frais / Σ init) sur les claims Terminé, Event">% frais Event</th>
+        <th title="% frais moyen pondéré (Σ frais / Σ init) sur les claims Terminé, CB">% frais CB</th>
+      </tr></thead>
       <tbody id="gom-body"></tbody>
     </table></div>
   </div>
@@ -474,7 +482,10 @@
       <div class="toolbar-actions"><button onclick="openEvcbModal()">+ Ajouter</button></div>
     </div>
     <div class="table-scroll ref-table"><table class="evcb-table resizable-table">
-      <thead><tr><th>Nom</th><th>Type</th><th>Commentaire</th></tr></thead>
+      <thead><tr>
+        <th class="sortable" onclick="toggleEvcbSort()" title="Trier A→Z / Z→A / ordre naturel">Nom <span id="evcb-sort-arrow"></span></th>
+        <th>Type</th><th>Commentaire</th>
+      </tr></thead>
       <tbody id="evcb-body"></tbody>
     </table></div>
   </div>
@@ -540,7 +551,7 @@ const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 let tokenClient, accessToken = null, tokenExpiresAt = 0;
 
 const SHEETS = {
-  event: { name: "ACHAT_EVENT", width: 16 }, // col P (idx15) = Frais en % d'init (calc)
+  event: { name: "ACHAT_EVENT", width: 17 }, // col P (idx15) = Frais en % d'init (calc) ; col Q (idx16) = Nb produit
   cb:    { name: "ACHAT_CB",    width: 21 }, // col U (idx20) = Frais en % d'init (calc)
   ventes:{ name: "VENTES",      width: 10 },
   gom:   { name: "GOM",         width: 5  }, // col A (idx0) = ID (clé stable) ; Nom en idx1
@@ -914,6 +925,7 @@ function makeColumnResizer(storageKey, colCount, defaults, tableSelector){
       if(th.querySelector('.col-resizer')) return;
       const handle = document.createElement('span');
       handle.className = 'col-resizer';
+      handle.addEventListener('click', (e) => e.stopPropagation());
       handle.addEventListener('mousedown', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -937,18 +949,18 @@ function makeColumnResizer(storageKey, colCount, defaults, tableSelector){
   return { init };
 }
 
-// "", Claim, Vendeur, Statut, Init, Payé, EMS, Custom, Dom, Total, Nb PC, €/PC, Frais %, ""
-const eventColResizer = makeColumnResizer('eventColWidths', 14,
-  [34,160,110,90,64,64,64,64,64,84,60,72,72,34], 'table.event-table');
+// "", Claim, Vendeur, Statut, Init, Payé, EMS, Custom, Dom, Total, Nb PC, €/PC, Nb produit, €/produit, Frais %, ""
+const eventColResizer = makeColumnResizer('eventColWidths', 16,
+  [34,160,110,90,64,64,64,64,64,84,60,72,70,80,72,34], 'table.event-table');
 // "", Vendeur, Statut, Store, Album, Nb alb., Full, Incl., POB/membre, Nb POB, Init, Payé, EMS, Custom, Dom, Total, Frais %, ""
 const cbColResizer = makeColumnResizer('cbColWidths', 18,
   [34,110,100,110,80,60,55,55,150,60,65,70,65,65,65,80,65,30], 'table.cb-table');
 // "", Event ou CB, Item, Acheteur, Prix vente, Prix achat, Bénéf, Nb PC, État, Date, ""
 const ventesColResizer = makeColumnResizer('ventesColWidths', 11,
   [34,180,160,130,95,95,85,60,110,110,70], 'table.ventes-table');
-// Nom GOM/Seller, Lieu, Canal, Commentaire
-const gomColResizer = makeColumnResizer('gomColWidths', 4,
-  [220,160,140,320], 'table.gom-table');
+// Nom GOM/Seller, Lieu, Canal, Commentaire, Claims Event, Claims CB, % frais Event, % frais CB
+const gomColResizer = makeColumnResizer('gomColWidths', 8,
+  [190,130,110,220,90,80,100,90], 'table.gom-table');
 // Nom, Type, Commentaire
 const evcbColResizer = makeColumnResizer('evcbColWidths', 3,
   [320,140,340], 'table.evcb-table');
@@ -1047,18 +1059,24 @@ function renderEvent(){
 
   // KPI band (sur les lignes filtrées)
   const claims = rows.length;
+  const claimsEnCours = rows.filter(r => cell(r,3) === 'En cours').length;
   const initSum = rows.reduce((s,r)=>s+num(r,4),0);
   const frais = rows.reduce((s,r)=>s+num(r,6)+num(r,7)+num(r,8),0);
   const total = rows.reduce((s,r)=>s+eventRowTotal(r),0);
   const nbPC = rows.reduce((s,r)=>s+num(r,10),0);
   const coutParPC = nbPC ? total/nbPC : 0;
+  const nbProduits = rows.reduce((s,r)=>s+num(r,16),0);
+  const coutParProduit = nbProduits ? total/nbProduits : 0;
   document.getElementById('event-kpi').innerHTML = `
     <div class="kpi-card"><div class="label">Claims</div><div class="value neutral">${claims}</div></div>
+    <div class="kpi-card"><div class="label">Claims en cours</div><div class="value neutral">${claimsEnCours}</div></div>
     <div class="kpi-card"><div class="label">Coût initial</div><div class="value neutral">${fmtEuro(initSum)}</div></div>
     <div class="kpi-card"><div class="label">Frais (EMS+custom+dom)</div><div class="value neutral">${fmtEuro(frais)}</div></div>
     <div class="kpi-card"><div class="label">Coût total</div><div class="value">${fmtEuro(total)}</div></div>
     <div class="kpi-card"><div class="label">Nb PC</div><div class="value neutral">${nbPC}</div></div>
     <div class="kpi-card"><div class="label">Coût moyen / PC</div><div class="value">${coutParPC ? coutParPC.toFixed(2)+' €' : '—'}</div></div>
+    <div class="kpi-card"><div class="label">Nb produits</div><div class="value neutral">${nbProduits}</div></div>
+    <div class="kpi-card"><div class="label">Coût moyen / produit</div><div class="value">${coutParProduit ? coutParProduit.toFixed(2)+' €' : '—'}</div></div>
   `;
 
   // Groupes par Event (clé = ID, libellé affiché = nom résolu)
@@ -1088,7 +1106,7 @@ function renderEvent(){
       <div class="table-scroll"><table class="event-table resizable-table">
         <thead><tr>
           <th></th><th>Claim</th><th>Vendeur</th><th>Statut</th><th>Init</th><th>Payé</th>
-          <th>EMS</th><th>Custom</th><th>Dom</th><th>Total</th><th>Nb PC</th><th>€/PC</th><th>Frais %</th><th></th>
+          <th>EMS</th><th>Custom</th><th>Dom</th><th>Total</th><th>Nb PC</th><th>€/PC</th><th>Nb produit</th><th>€/produit</th><th>Frais %</th><th></th>
         </tr></thead>
         <tbody>${grows.map(r => eventRowHtml(r)).join('')}</tbody>
       </table></div>
@@ -1101,6 +1119,7 @@ function renderEvent(){
 function eventRowHtml(r){
   const total = eventRowTotal(r), pc = num(r,10), cpp = pc ? total/pc : 0;
   const initE = num(r,4), fraisPctE = initE ? ((total - initE) / initE) * 100 : null;
+  const nbProd = num(r,16), cpProd = nbProd ? total/nbProd : 0;
   const comment = cell(r,12);
   return `
     <tr data-row="${r.rowIndex}">
@@ -1116,6 +1135,8 @@ function eventRowHtml(r){
       <td class="cost-cell readonly-val mfield" data-mlabel="Total">${total?fmtEuro(total):'—'}</td>
       <td class="mfield mfield-left" data-mlabel="Nb PC"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,10))}" onblur="saveCell('event', ${r.rowIndex}, 10, this.value)"></td>
       <td class="readonly-val mfield" data-mlabel="€/PC">${cpp?cpp.toFixed(2)+' €':'—'}</td>
+      <td class="mfield mfield-left" data-mlabel="Nb produit"><input type="text" class="cell-input narrow" value="${escapeAttr(cell(r,16))}" onblur="saveCell('event', ${r.rowIndex}, 16, this.value)"></td>
+      <td class="readonly-val mfield" data-mlabel="€/produit">${cpProd?cpProd.toFixed(2)+' €':'—'}</td>
       <td class="readonly-val mfield mfield-left" data-mlabel="Frais % d'init">${fraisPctText(num(r,4), total)}</td>
       <td class="pastille-cell"><span class="price-dot ${pastilleClass(fraisPctE)}" title="% frais / init"></span></td>
     </tr>`;
@@ -1332,17 +1353,67 @@ function renderVentes(){
 /* ---------- Referentiels ---------- */
 let gomSearchQ = '';
 let evcbSearchQ = '';
+let gomSortAsc = null;  // null = ordre naturel, true = A→Z, false = Z→A
+let evcbSortAsc = null;
+function toggleGomSort(){
+  gomSortAsc = gomSortAsc === null ? true : (gomSortAsc === true ? false : null);
+  document.getElementById('gom-sort-arrow').textContent = gomSortAsc === true ? '▲' : (gomSortAsc === false ? '▼' : '');
+  renderReferentiels();
+}
+function toggleEvcbSort(){
+  evcbSortAsc = evcbSortAsc === null ? true : (evcbSortAsc === true ? false : null);
+  document.getElementById('evcb-sort-arrow').textContent = evcbSortAsc === true ? '▲' : (evcbSortAsc === false ? '▼' : '');
+  renderReferentiels();
+}
+// Métriques par GOM : nb de claims Event / CB, et % frais moyen pondéré (Σ frais / Σ init)
+// uniquement sur les claims "Terminé" avec un Init > 0 (même logique pondérée que le €/POB net).
+function gomMetrics(gomId){
+  const evClaims = DATA.event.filter(r => String(cell(r,2)) === String(gomId));
+  const cbClaims = DATA.cb.filter(r => String(cell(r,1)) === String(gomId));
+  function fraisPctPondere(claims, statutIdx, initIdx, totalFn){
+    const done = claims.filter(r => cell(r,statutIdx) === 'Terminé' && num(r,initIdx) > 0);
+    if(!done.length) return null;
+    const sumInit = done.reduce((s,r) => s + num(r,initIdx), 0);
+    const sumTotal = done.reduce((s,r) => s + totalFn(r), 0);
+    return sumInit ? ((sumTotal - sumInit) / sumInit) * 100 : null;
+  }
+  return {
+    claimsEvent: evClaims.length,
+    claimsCB: cbClaims.length,
+    fraisEvent: fraisPctPondere(evClaims, 3, 4, eventRowTotal),
+    fraisCB: fraisPctPondere(cbClaims, 16, 9, cbRowTotal),
+  };
+}
 function renderReferentiels(){
-  const gomRows = DATA.gom.filter(r => !gomSearchQ || cell(r,1).toLowerCase().includes(gomSearchQ));
-  document.getElementById('gom-body').innerHTML = gomRows.map(r => `
+  let gomRows = DATA.gom.filter(r => !gomSearchQ || cell(r,1).toLowerCase().includes(gomSearchQ));
+  if(gomSortAsc !== null){
+    gomRows = gomRows.slice().sort((a,b) => {
+      const cmp = cell(a,1).toLowerCase().localeCompare(cell(b,1).toLowerCase());
+      return gomSortAsc ? cmp : -cmp;
+    });
+  }
+  document.getElementById('gom-body').innerHTML = gomRows.map(r => {
+    const m = gomMetrics(cell(r,0));
+    return `
     <tr data-row="${r.rowIndex}">
       <td class="mtitle" data-mlabel="Nom GOM / Seller"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,1))}" onblur="saveCell('gom', ${r.rowIndex}, 1, this.value)"></td>
       <td class="mfield mfield-left" data-mlabel="Lieu"><input type="text" class="cell-input wide-lieu" value="${escapeAttr(cell(r,2))}" onblur="saveCell('gom', ${r.rowIndex}, 2, this.value)"></td>
       <td class="mfield" data-mlabel="Canal">${canalSelectHtml('gom', r.rowIndex, 3, cell(r,3))}</td>
       <td class="mfield mfield-full" data-mlabel="Commentaire"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,4))}" onblur="saveCell('gom', ${r.rowIndex}, 4, this.value)"></td>
-    </tr>`).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--ink-faint);">${gomSearchQ ? 'Aucun résultat.' : "Aucun GOM pour l'instant."}</td></tr>`;
+      <td class="readonly-val mfield mfield-left" data-mlabel="Claims Event">${m.claimsEvent}</td>
+      <td class="readonly-val mfield" data-mlabel="Claims CB">${m.claimsCB}</td>
+      <td class="readonly-val mfield mfield-left" data-mlabel="% frais Event">${m.fraisEvent !== null ? m.fraisEvent.toFixed(1) + ' %' : '—'}</td>
+      <td class="readonly-val mfield" data-mlabel="% frais CB">${m.fraisCB !== null ? m.fraisCB.toFixed(1) + ' %' : '—'}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--ink-faint);">${gomSearchQ ? 'Aucun résultat.' : "Aucun GOM pour l'instant."}</td></tr>`;
 
-  const evcbRows = DATA.evcb.filter(r => !evcbSearchQ || cell(r,1).toLowerCase().includes(evcbSearchQ));
+  let evcbRows = DATA.evcb.filter(r => !evcbSearchQ || cell(r,1).toLowerCase().includes(evcbSearchQ));
+  if(evcbSortAsc !== null){
+    evcbRows = evcbRows.slice().sort((a,b) => {
+      const cmp = cell(a,1).toLowerCase().localeCompare(cell(b,1).toLowerCase());
+      return evcbSortAsc ? cmp : -cmp;
+    });
+  }
   document.getElementById('evcb-body').innerHTML = evcbRows.map(r => `
     <tr data-row="${r.rowIndex}">
       <td class="mtitle" data-mlabel="Nom"><input type="text" class="cell-input wide" value="${escapeAttr(cell(r,1))}" onblur="saveCell('evcb', ${r.rowIndex}, 1, this.value)"></td>
