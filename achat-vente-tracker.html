@@ -101,10 +101,29 @@
   .kpi-card .label{ font-size:0.65rem; text-transform:uppercase; letter-spacing:0.05em; color: var(--ink-faint); margin-bottom:6px; }
   .kpi-card .value{ font-family:'Fraunces', serif; font-weight:600; font-size:1.2rem; color: var(--accent); }
   .kpi-card .value.neutral{ color: var(--ink); }
-  .kpi-card.fandom{ flex:0 1 340px; background: var(--accent); border-color: var(--accent); }
-  .kpi-card.fandom .label{ color: rgba(255,255,255,0.75); }
-  .kpi-card.fandom .value{ color:#fff; font-size:1.6rem; }
-  .kpi-card.fandom .hint{ font-size:0.7rem; color: rgba(255,255,255,0.75); margin-top:4px; }
+  .fandom-band{ display:flex; background: var(--accent); color:#fff; border-radius:12px; margin:4px 0 8px; box-shadow:0 1px 3px rgba(28,29,27,0.08); }
+  .fandom-band .fb-item{ flex:1; padding:16px 22px; min-width:0; }
+  .fandom-band .fb-item + .fb-item{ border-left:1px solid rgba(255,255,255,0.22); }
+  .fandom-band .fb-label{ font-size:0.65rem; text-transform:uppercase; letter-spacing:0.05em; color: rgba(255,255,255,0.75); margin-bottom:6px; }
+  .fandom-band .fb-value{ font-family:'Fraunces', serif; font-weight:600; font-size:1.6rem; }
+  .fandom-band .fb-hint{ font-size:0.74rem; color: rgba(255,255,255,0.8); margin-top:4px; }
+
+  /* ===== Calendrier (sélecteur de date maison, onglet Concerts) ===== */
+  .cal{ width:266px; max-width:100%; user-select:none; }
+  .cal-pop{ position:absolute; z-index:60; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.15); padding:10px; }
+  .cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; font-family:'Fraunces', serif; font-weight:600; font-size:0.92rem; }
+  .cal-nav{ background:none; color: var(--ink-soft); border:1px solid var(--line); width:28px; height:28px; padding:0; border-radius:6px; font-size:1rem; line-height:1; }
+  .cal-nav:hover{ background: var(--accent-soft); color: var(--accent); opacity:1; }
+  .cal-grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:2px; }
+  .cal-wd{ font-size:0.6rem; text-transform:uppercase; color: var(--ink-faint); text-align:center; padding:4px 0; }
+  .cal-day{ background:none; color: var(--ink); border:none; padding:0; height:32px; border-radius:6px; font-size:0.8rem; font-weight:500; }
+  .cal-day:hover{ background: var(--accent-soft); color: var(--accent); opacity:1; }
+  .cal-day.today{ box-shadow: inset 0 0 0 1px var(--accent); }
+  .cal-day.sel, .cal-day.sel:hover{ background: var(--accent); color:#fff; }
+  .cal-selected{ font-size:0.85rem; font-weight:600; color: var(--accent); }
+  .cal-selected.empty{ color: var(--ink-faint); font-weight:400; }
+  #concert-cal{ width:100%; border:1px solid var(--line); border-radius:8px; padding:8px; }
+  input.concert-date-input{ cursor:pointer; }
   .kpi-sub{ font-size:0.76rem; color: var(--ink-soft); padding:6px 2px 18px; }
   .kpi-sub b{ color: var(--ink); font-weight:600; }
   .kpi-sub span:not(:last-child)::after{ content:"·"; margin:0 10px; color: var(--line); }
@@ -307,7 +326,8 @@
     .shell{ padding:16px 12px 40px; }
     .kpi-band{ gap:8px; }
     .kpi-card{ flex:0 0 calc(50% - 4px); min-width:0; padding:12px 14px; }
-    .kpi-card.fandom{ flex:0 0 100%; }
+    .fandom-band{ flex-direction:column; }
+    .fandom-band .fb-item + .fb-item{ border-left:none; border-top:1px solid rgba(255,255,255,0.22); }
     .modal-grid{ grid-template-columns:1fr; }
     .toolbar{ flex-direction:column; align-items:stretch; }
     .search-wrap{ width:100%; }
@@ -409,8 +429,10 @@
 
   <!-- ===================== ACCUEIL ===================== -->
   <div class="page active" id="page-accueil">
-    <div class="home-hero"><p>Vue d'ensemble collection + live.</p></div>
-    <div class="kpi-band" id="home-fandom"></div>
+    <div class="fandom-band" id="home-fandom"></div>
+
+    <div class="section-title block">Live</div>
+    <div class="kpi-band" id="home-live"></div>
 
     <div class="section-title block">Collection</div>
     <div class="kpi-band" id="home-kpi"></div>
@@ -419,9 +441,6 @@
       <thead id="ar-thead"></thead>
       <tbody id="ar-body"></tbody>
     </table></div>
-
-    <div class="section-title block">Live</div>
-    <div class="kpi-band" id="home-live"></div>
   </div>
 
   <!-- ===================== ACHAT EVENT ===================== -->
@@ -577,7 +596,7 @@
     <div class="modal-head"><span id="concert-modal-title">Nouveau concert</span><button class="modal-close" onclick="closeModal('modal-concert')">×</button></div>
     <div class="modal-body">
       <div class="modal-grid">
-        <div class="full"><div class="modal-label">Date <span class="req">*</span></div><input type="date" id="concert-date"></div>
+        <div class="full"><div class="modal-label">Date <span class="req">*</span></div><input type="hidden" id="concert-date"><div class="cal-selected empty" id="concert-date-label">Choisis une date</div><div class="cal" id="concert-cal"></div></div>
         <div><div class="modal-label">Ville</div><input type="text" id="concert-ville"></div>
         <div><div class="modal-label">Salle</div><input type="text" id="concert-salle"></div>
         <div class="full"><div class="modal-label">Artiste / tournée</div><input type="text" id="concert-artiste"></div>
@@ -995,10 +1014,16 @@ function renderAccueil(){
     <div class="kpi-card"><div class="label">Total live</div><div class="value">${fmtEuro(liveTotal)}</div></div>
   `;
 
-  // --- Fandom = coût net réel collection + total live ---
+  // --- Fandom : vue brute (tout ce qui est sorti) et vue nette (après reventes, qui ne concernent que la collection) ---
+  // Espace fine insécable (U+202F) de toLocaleString remplacée par une insécable classique : mal rendue dans la police du détail.
+  const eur = n => fmtEuro(n).replace(/\u202f/g, '\u00a0');
+  const fandomBrut = depenseTotale + liveTotal;
+  const fandomNet = fandomBrut - revendu;
   document.getElementById('home-fandom').innerHTML = `
-    <div class="kpi-card fandom"><div class="label">Total Fandom</div><div class="value">${fmtEuro(coutNet + liveTotal)}</div>
-    <div class="hint">Coût net collection ${fmtEuro(coutNet)} + live ${fmtEuro(liveTotal)}</div></div>
+    <div class="fb-item"><div class="fb-label">Dépense totale Fandom</div><div class="fb-value">${eur(fandomBrut)}</div>
+      <div class="fb-hint">Collection ${eur(depenseTotale)} + Live ${eur(liveTotal)}</div></div>
+    <div class="fb-item"><div class="fb-label">Coût net Fandom</div><div class="fb-value">${eur(fandomNet)}</div>
+      <div class="fb-hint">après ${eur(revendu)} de reventes</div></div>
   `;
   renderAchatRevente();
 }
@@ -1769,7 +1794,7 @@ function renderConcerts(){
     return `
     <tr data-row="${r.rowIndex}">
       <td class="claim-icon"><button class="pencil ${comment?'has-comment':''}" title="Commentaire" onclick="openCommentModal('concerts', ${r.rowIndex}, ${JSON.stringify(label).replace(/"/g,'&quot;')})">✎</button></td>
-      <td class="mfield mfield-left" data-mlabel="Date"><input type="text" class="cell-input date-input" placeholder="AAAA-MM-JJ" value="${escapeAttr(cell(r,0))}" onblur="saveCell('concerts', ${r.rowIndex}, 0, this.value); renderConcerts();"></td>
+      <td class="mfield mfield-left" data-mlabel="Date"><input type="text" readonly class="cell-input date-input concert-date-input" placeholder="AAAA-MM-JJ" value="${escapeAttr(cell(r,0))}" onclick="openDatePopover(this, ${r.rowIndex})"></td>
       <td class="mtitle mfield-full" data-mlabel="Artiste / tournée">${concertInputHtml(r, 3, 'wide', false)}</td>
       <td class="mfield mfield-left" data-mlabel="Ville">${concertInputHtml(r, 1, 'wide-lieu', false)}</td>
       <td class="mfield" data-mlabel="Salle">${concertInputHtml(r, 2, 'wide', false)}</td>
@@ -2075,11 +2100,93 @@ async function submitEvcbModal(){
 // L'ordre des champs = l'ordre des colonnes A..J de l'onglet CONCERTS.
 const CONCERT_FIELDS = ['concert-date','concert-ville','concert-salle','concert-artiste','concert-type',
   'concert-billet','concert-transport','concert-heberg','concert-autres','concert-commentaire'];
+/* ---------- Calendrier maison (remplace le sélecteur natif, peu pratique) ---------- */
+// Semaine commençant le lundi. Changer de mois ne ferme rien ; un clic sur un jour appelle onPick(AAAA-MM-JJ).
+const CAL_MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+function calIso(y, m, d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+function makeCalState(dateValue, onPick, keepSelection){
+  const k = concertDateKey(dateValue);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(k || '');
+  const base = m ? new Date(+m[1], +m[2]-1, 1) : new Date();
+  return { y: base.getFullYear(), m: base.getMonth(), selected: (m && keepSelection !== false) ? k : null, onPick };
+}
+function renderCalendar(el, state){
+  const offset = (new Date(state.y, state.m, 1).getDay() + 6) % 7;
+  const nbDays = new Date(state.y, state.m + 1, 0).getDate();
+  const t = new Date(), todayIso = calIso(t.getFullYear(), t.getMonth(), t.getDate());
+  let cells = ['L','M','M','J','V','S','D'].map(d => `<span class="cal-wd">${d}</span>`).join('');
+  for(let i = 0; i < offset; i++) cells += '<span></span>';
+  for(let d = 1; d <= nbDays; d++){
+    const iso = calIso(state.y, state.m, d);
+    cells += `<button type="button" class="cal-day${iso === todayIso ? ' today' : ''}${iso === state.selected ? ' sel' : ''}" data-iso="${iso}">${d}</button>`;
+  }
+  el.innerHTML = `
+    <div class="cal-head">
+      <button type="button" class="cal-nav" data-step="-1" title="Mois précédent">‹</button>
+      <span>${CAL_MONTHS[state.m]} ${state.y}</span>
+      <button type="button" class="cal-nav" data-step="1" title="Mois suivant">›</button>
+    </div>
+    <div class="cal-grid">${cells}</div>`;
+  el.querySelectorAll('.cal-nav').forEach(b => b.addEventListener('click', () => {
+    state.m += parseInt(b.dataset.step, 10);
+    if(state.m < 0){ state.m = 11; state.y--; }
+    if(state.m > 11){ state.m = 0; state.y++; }
+    renderCalendar(el, state);
+  }));
+  el.querySelectorAll('.cal-day').forEach(b => b.addEventListener('click', () => {
+    state.selected = b.dataset.iso;
+    state.onPick(b.dataset.iso);
+  }));
+}
+function fmtDateLong(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if(!m) return iso || '';
+  return new Date(+m[1], +m[2]-1, +m[3]).toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+
+// Bulle calendrier sur la date d'une ligne : un clic sur un jour enregistre directement.
+let datePop = null;
+function closeDatePopover(){ if(datePop){ datePop.remove(); datePop = null; } }
+function openDatePopover(input, rowIndex){
+  closeDatePopover();
+  const row = DATA.concerts.find(r => r.rowIndex === rowIndex);
+  if(!row) return;
+  datePop = document.createElement('div');
+  datePop.className = 'cal cal-pop';
+  datePop.addEventListener('click', e => e.stopPropagation()); // les re-rendus internes ne doivent pas la refermer
+  document.body.appendChild(datePop);
+  const state = makeCalState(cell(row,0), iso => {
+    closeDatePopover();
+    saveCell('concerts', rowIndex, 0, iso);
+    renderConcerts();
+  });
+  renderCalendar(datePop, state);
+  const r = input.getBoundingClientRect();
+  const w = datePop.offsetWidth;
+  datePop.style.top = (r.bottom + window.scrollY + 4) + 'px';
+  datePop.style.left = (Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + window.scrollX) + 'px';
+}
+document.addEventListener('click', (e) => {
+  if(datePop && !e.target.closest('.concert-date-input')) closeDatePopover();
+});
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeDatePopover(); });
+
+function setModalConcertDate(iso){
+  document.getElementById('concert-date').value = iso || '';
+  const lbl = document.getElementById('concert-date-label');
+  lbl.textContent = iso ? fmtDateLong(iso) : 'Choisis une date';
+  lbl.classList.toggle('empty', !iso);
+}
 function openConcertModal(srcRowIndex){
   const src = srcRowIndex ? DATA.concerts.find(r => r.rowIndex === srcRowIndex) : null;
   CONCERT_FIELDS.forEach((id, idx) => {
     document.getElementById(id).value = (src && idx !== 0) ? cell(src, idx) : '';
   });
+  // Date toujours vide ; en duplication, le calendrier s'ouvre sur le mois du concert d'origine (dates d'une même tournée).
+  setModalConcertDate('');
+  const calEl = document.getElementById('concert-cal');
+  const calState = makeCalState(src ? cell(src,0) : '', iso => { setModalConcertDate(iso); renderCalendar(calEl, calState); }, false);
+  renderCalendar(calEl, calState);
   document.getElementById('concert-modal-title').textContent = src ? 'Dupliquer le concert' : 'Nouveau concert';
   document.getElementById('concert-error').style.display = 'none';
   openModal('modal-concert');
@@ -2088,7 +2195,7 @@ async function submitConcertModal(){
   const row = CONCERT_FIELDS.map(id => document.getElementById(id).value.trim());
   const errEl = document.getElementById('concert-error');
   if(concertsMissing){ errEl.textContent = "Onglet CONCERTS introuvable dans le Google Sheet."; errEl.style.display='block'; return; }
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(row[0])){ errEl.textContent = 'La date est obligatoire.'; errEl.style.display='block'; return; }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(row[0])){ errEl.textContent = 'Choisis une date dans le calendrier.'; errEl.style.display='block'; return; }
   try{
     await appendRow('concerts', row);
     closeModal('modal-concert');
