@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fic Library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fafafa;
+    --surface:#ffffff;
+    --line:#e4e4e1;
+    --line-soft:#eeeeec;
+    --ink:#1c1d1b;
+    --ink-soft:#6b6c68;
+    --ink-faint:#9b9c97;
+    --accent:#2f5d54;
+    --accent-soft:#e4ede9;
+    --warn:#b8862f;
+    --warn-soft:#f6eeda;
+    --danger:#a34a3a;
+  }
+  html,body{max-width:100%;overflow-x:hidden;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+  header{padding:30px 24px 16px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;justify-content:center;}
+  header h1{font-family:'Fraunces',serif;font-weight:600;font-size:1.5rem;margin:0;letter-spacing:-0.01em;}
+  #auth-bar{display:flex;justify-content:center;padding:14px;gap:10px;}
+  .shell{max-width:1480px;margin:0 auto;padding:0 24px 60px;}
+  .layout{display:flex;gap:24px;align-items:flex-start;}
+  .main{flex:1;min-width:0;}
+  .sidebar{width:248px;flex-shrink:0;position:sticky;top:20px;margin-top:38px;display:none;flex-direction:column;gap:14px;}
+  .sidebar-block{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;}
+  button{font-family:'Inter',sans-serif;font-size:0.82rem;font-weight:500;background:var(--accent);color:#fff;border:none;padding:9px 16px;cursor:pointer;border-radius:6px;transition:background 0.15s;}
+  button:hover{background:#254a43;}
+  button:disabled{opacity:0.5;cursor:default;}
+  button.secondary{background:transparent;color:var(--ink-soft);border:1px solid var(--line);}
+  button.secondary:hover{background:var(--line-soft);}
+  #status-line{text-align:center;font-size:0.78rem;color:var(--ink-faint);min-height:18px;padding-bottom:6px;}
+  #status-line.error{color:var(--danger);}
+  .sidebar input[type="text"],.sidebar select{font-family:'Inter',sans-serif;font-size:0.82rem;background:var(--surface);border:1px solid var(--line);color:var(--ink);padding:8px 12px;border-radius:6px;width:100%;}
+  .search-wrap{position:relative;width:100%;}
+  .search-wrap input{padding-right:28px;}
+  .search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--ink-faint);font-size:1.05rem;line-height:1;padding:2px 4px;display:none;}
+  .search-clear.show{display:block;}
+  .check{font-size:0.8rem;color:var(--ink-soft);display:flex;align-items:center;gap:6px;cursor:pointer;}
+  .tf-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-faint);}
+  .mode-toggle{display:flex;background:var(--line-soft);border-radius:7px;padding:2px;font-size:0.75rem;align-self:flex-start;}
+  .mode-toggle span{padding:5px 11px;border-radius:5px;color:var(--ink-soft);cursor:pointer;}
+  .mode-toggle span.active{background:var(--accent);color:#fff;font-weight:500;}
+  #tag-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .tag-chip{background:var(--accent-soft);color:var(--accent);font-size:0.75rem;padding:5px 10px;border-radius:20px;display:flex;align-items:center;gap:6px;}
+  .tag-chip .x{cursor:pointer;opacity:0.65;}
+  .tag-chip .x:hover{opacity:1;}
+  #scan-result{font-size:0.76rem;color:var(--ink-soft);line-height:1.55;overflow-wrap:anywhere;}
+  #scan-result ul{margin:4px 0 0;padding-left:16px;}
+  #scan-result .warnbox{background:var(--warn-soft);border-radius:6px;padding:8px;color:var(--ink);display:flex;flex-direction:column;gap:8px;}
+  #scan-result .warnbox div{display:flex;gap:6px;}
+  #count-line{text-align:center;font-size:0.75rem;color:var(--ink-faint);margin:12px 0 6px;display:none;}
+  #table-wrap{overflow-x:auto;}
+  table{width:100%;table-layout:fixed;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  table.hidden{display:none !important;}
+  thead th{text-align:left;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-faint);font-weight:600;padding:12px 10px;border-bottom:1px solid var(--line);background:#fcfcfb;white-space:nowrap;overflow:hidden;position:relative;cursor:pointer;user-select:none;}
+  thead th.sorted{color:var(--accent);}
+  thead th .rz{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize;}
+  thead th .rz:hover{background:var(--line);}
+  thead th:first-child,tbody td:first-child{padding-left:14px;}
+  thead th:last-child,tbody td:last-child{padding-right:14px;}
+  tbody tr.data-row{border-bottom:1px solid var(--line-soft);cursor:pointer;}
+  tbody tr.data-row:hover{background:#fbfbfa;}
+  tbody tr.data-row.absent{opacity:0.5;}
+  tbody tr.detail-row td{background:#fbfbf9;padding:0;border-bottom:1px solid var(--line-soft);cursor:default;}
+  td{padding:11px 10px;font-size:0.84rem;vertical-align:top;overflow:hidden;text-overflow:ellipsis;}
+  td.title-cell .t{font-family:'Fraunces',serif;font-weight:500;font-size:0.92rem;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  td.title-cell .a{font-size:0.74rem;color:var(--ink-faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  td.soft{color:var(--ink-soft);font-size:0.8rem;}
+  td.clamp > div{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .badge{display:inline-block;font-size:0.7rem;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+  .badge.done{background:var(--accent-soft);color:var(--accent);}
+  .badge.wip{background:var(--warn-soft);color:var(--warn);}
+  .badge.unk{background:var(--line-soft);color:var(--ink-faint);}
+  td.resume-cell{font-size:0.8rem;line-height:1.45;color:var(--ink-soft);}
+  .tag-pill-outline{background:#fff;border:1px solid var(--line);color:var(--ink-soft);font-size:0.72rem;padding:3px 10px;border-radius:20px;margin:0 5px 5px 0;display:inline-block;cursor:pointer;}
+  .tag-pill-outline:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+  .detail-inner{padding:16px 22px 20px;position:relative;overflow-wrap:break-word;word-break:break-word;}
+  .detail-close{position:absolute;top:10px;right:16px;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--ink-soft);text-align:center;line-height:24px;cursor:pointer;font-size:0.85rem;}
+  .detail-close:hover{color:var(--accent);border-color:var(--accent);}
+  .detail-meta{font-size:0.76rem;color:var(--ink-faint);margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;padding-right:32px;}
+  .detail-meta span:not(:last-child)::after{content:"·";margin-left:8px;color:var(--line);}
+  .detail-meta a{color:var(--accent);text-decoration:none;}
+  .detail-resume{font-size:0.86rem;line-height:1.6;color:var(--ink);margin:0 0 12px;max-width:760px;padding-right:32px;white-space:pre-line;}
+  .detail-field{margin:0 0 8px;display:flex;align-items:flex-start;gap:10px;}
+  .detail-field .lbl{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-faint);padding-top:5px;min-width:70px;flex-shrink:0;}
+  .detail-field .val{flex:1;min-width:0;font-size:0.8rem;color:var(--ink-soft);}
+  .detail-field .val.path{padding-top:4px;}
+  #empty-state{text-align:center;color:var(--ink-faint);font-size:0.85rem;padding:60px 20px;display:none;}
+  @media (max-width:720px){
+    .shell{padding:0 12px 40px;}
+    .layout{flex-direction:column;gap:16px;align-items:stretch;}
+    .sidebar{width:100%;position:static;margin-top:0;margin-bottom:4px;order:1;}
+    .main{order:2;width:100%;}
+    #scan-block{display:none !important;}
+    #table-wrap{overflow-x:visible;}
+    table{display:block;table-layout:auto;border:none;background:transparent;border-radius:0;}
+    colgroup,thead{display:none;}
+    tbody,tr{display:block;width:auto !important;}
+    tbody tr.data-row{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px 10px;}
+    tbody tr.data-row:hover{background:var(--surface);}
+    tbody tr.data-row td{display:block;border:none;padding:0;width:auto !important;min-width:0;}
+    tbody tr.data-row td.title-cell,tbody tr.data-row td.wide{grid-column:1 / -1;}
+    td.title-cell .t{font-size:1rem;-webkit-line-clamp:initial;}
+    td[data-label]::before{content:attr(data-label);display:block;font-size:0.63rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-faint);margin-bottom:2px;}
+    td.empty-m{display:none !important;}
+    tbody tr.detail-row{margin:-6px 0 10px;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+    tbody tr.detail-row td{display:block;}
+    .detail-inner{padding:14px 16px 16px;}
+    .detail-resume{max-width:100%;padding-right:26px;}
+    .detail-field{flex-direction:column;gap:2px;}
+  }
+</style>
+</head>
+<body>
+
+<header><h1>Fic Library</h1></header>
+
+<div id="auth-bar"><button id="btn-signin">Se connecter avec Google</button></div>
+<div id="status-line"></div>
+
+<div class="shell">
+  <div class="layout">
+    <div class="main">
+      <div id="count-line"></div>
+      <div id="table-wrap">
+        <table id="grid-table" class="hidden">
+          <colgroup id="grid-cols"></colgroup>
+          <thead><tr id="grid-head"></tr></thead>
+          <tbody id="grid-body"></tbody>
+        </table>
+        <datalist id="tags-datalist"></datalist>
+      </div>
+      <div id="empty-state">Aucune fic pour ce filtre.</div>
+    </div>
+
+    <div class="sidebar" id="filters-sidebar">
+      <div class="sidebar-block">
+        <div class="search-wrap">
+          <input type="text" id="search" placeholder="Titre, auteur, résumé...">
+          <span id="search-clear" class="search-clear">×</span>
+        </div>
+        <select id="filter-fandom"></select>
+        <select id="filter-status">
+          <option value="">Tous les statuts</option>
+          <option value="Terminé">Terminé</option>
+          <option value="En cours">En cours</option>
+          <option value="Inconnu">Inconnu</option>
+        </select>
+        <select id="filter-source"></select>
+        <label class="check"><input type="checkbox" id="filter-absent"> Afficher les fics absentes du dossier</label>
+      </div>
+
+      <div class="sidebar-block">
+        <span class="tf-label">Tags et relations</span>
+        <div class="mode-toggle"><span id="mode-and" class="active">ET</span><span id="mode-or">OU</span></div>
+        <div id="tag-chips"></div>
+        <input type="text" id="tag-add" list="tags-datalist" placeholder="+ ajouter un tag">
+      </div>
+
+      <div class="sidebar-block" id="scan-block">
+        <span class="tf-label">Mise à jour</span>
+        <input type="file" id="scan-input" webkitdirectory multiple style="display:none;">
+        <button type="button" id="scan-btn">Scanner mes dossiers</button>
+        <div id="scan-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+const CLIENT_ID = "815063719481-1e32pi1caur7pv175qivvrlcddpfr6vs.apps.googleusercontent.com";
+const SPREADSHEET_ID = "14aKjVvnX4m_SZTVJevQgd9hOq4sf74lZdgmVxNG-F8c";
+const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
+const EXCLUDED_DIRS = ["light novels/", "à trier/old/"];
+const NON_FANDOM_DIRS = ["à trier", "divers"];
+const NCOLS = 15;
+const CELL_MAX = 40000;
+
+const ENTITIES = {amp:"&",lt:"<",gt:">",quot:'"',apos:"'",nbsp:" ",rsquo:"’",lsquo:"‘",rdquo:"”",ldquo:"“",hellip:"…",mdash:"—",ndash:"–",eacute:"é",egrave:"è",ecirc:"ê",agrave:"à",acirc:"â",ccedil:"ç",ocirc:"ô",ucirc:"û",ugrave:"ù",iuml:"ï",icirc:"î",euml:"ë",uuml:"ü",ouml:"ö",auml:"ä",ntilde:"ñ",oelig:"œ",deg:"°",copy:"©",trade:"™",times:"×",laquo:"«",raquo:"»"};
+
+function nfc(s){ return String(s||"").normalize("NFC"); }
+
+function decodeEntities(s){
+  return String(s||"").replace(/&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z][a-zA-Z0-9]*);/g, (m, e) => {
+    if(e[0] === "#"){
+      const code = (e[1] === "x" || e[1] === "X") ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      try{ return String.fromCodePoint(code); }catch(err){ return m; }
+    }
+    return Object.prototype.hasOwnProperty.call(ENTITIES, e) ? ENTITIES[e] : m;
+  });
+}
+
+function stripTags(s){
+  return decodeEntities(decodeEntities(String(s||"").replace(/<\/?[a-zA-Z!?][^>]*>/g, " "))).replace(/\s+/g, " ").trim();
+}
+
+function bodyOf(htmlText){
+  const i = htmlText.indexOf("<body");
+  return i >= 0 ? htmlText.slice(i) : htmlText;
+}
+
+function grab(re, s, n){
+  const m = re.exec(s);
+  return m ? String(m[n === undefined ? 1 : n] || "").trim() : "";
+}
+
+function decodeBytes(buf){
+  let t = new TextDecoder("utf-8").decode(buf);
+  const enc = /encoding=["'](iso-8859-1|windows-1252|latin1)["']/i.exec(t.slice(0, 300)) || /charset=(iso-8859-1|windows-1252)/i.exec(t.slice(0, 1500));
+  if(enc && t.indexOf("�") >= 0){
+    try{ t = new TextDecoder("windows-1252").decode(buf); }catch(e){}
+  }
+  return t;
+}
+
+async function readZipIndex(file){
+  const size = file.size;
+  const tailLen = Math.min(size, 66000);
+  const tail = new Uint8Array(await file.slice(size - tailLen, size).arrayBuffer());
+  let e = -1;
+  for(let i = tail.length - 22; i >= 0; i--){
+    if(tail[i] === 0x50 && tail[i+1] === 0x4b && tail[i+2] === 0x05 && tail[i+3] === 0x06){ e = i; break; }
+  }
+  if(e < 0) throw new Error("zip");
+  const dv = new DataView(tail.buffer, tail.byteOffset, tail.byteLength);
+  const count = dv.getUint16(e + 10, true);
+  const cdSize = dv.getUint32(e + 12, true);
+  const cdOff = dv.getUint32(e + 16, true);
+  const cd = new Uint8Array(await file.slice(cdOff, cdOff + cdSize).arrayBuffer());
+  const cv = new DataView(cd.buffer, cd.byteOffset, cd.byteLength);
+  const entries = new Map();
+  const dec = new TextDecoder("utf-8");
+  let p = 0;
+  for(let i = 0; i < count && p + 46 <= cd.length; i++){
+    if(cv.getUint32(p, true) !== 0x02014b50) break;
+    const method = cv.getUint16(p + 10, true);
+    const csize = cv.getUint32(p + 20, true);
+    const nl = cv.getUint16(p + 28, true);
+    const el = cv.getUint16(p + 30, true);
+    const cl = cv.getUint16(p + 32, true);
+    const off = cv.getUint32(p + 42, true);
+    const name = dec.decode(cd.subarray(p + 46, p + 46 + nl));
+    entries.set(name, {method, csize, off});
+    p += 46 + nl + el + cl;
+  }
+  if(!entries.size) throw new Error("zip");
+  return entries;
+}
+
+async function readZipEntry(file, en){
+  const h = new DataView(await file.slice(en.off, en.off + 30).arrayBuffer());
+  const start = en.off + 30 + h.getUint16(26, true) + h.getUint16(28, true);
+  const blob = file.slice(start, start + en.csize);
+  if(en.method === 0) return decodeBytes(await blob.arrayBuffer());
+  if(en.method !== 8) throw new Error("zip");
+  const ds = blob.stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return decodeBytes(await new Response(ds).arrayBuffer());
+}
+
+function joinPath(base, href){
+  const parts = (base ? base.split("/") : []);
+  href.split("/").forEach(seg => {
+    if(seg === "..") parts.pop();
+    else if(seg && seg !== ".") parts.push(seg);
+  });
+  return parts.join("/");
+}
+
+function anchorList(ddHtml){
+  const out = [];
+  const re = /<a\b[^>]*>([\s\S]*?)<\/a>/g;
+  let m;
+  while((m = re.exec(ddHtml))){
+    const t = stripTags(m[1]);
+    if(t) out.push(t);
+  }
+  if(out.length) return out;
+  const t = stripTags(ddHtml);
+  return t ? t.split(/\s*,\s*/).filter(Boolean) : [];
+}
+
+function normStatus(raw){
+  const s = String(raw||"").trim().toLowerCase();
+  if(!s) return "Inconnu";
+  if(s.startsWith("complet")) return "Terminé";
+  if(s.startsWith("in-progress") || s.startsWith("in progress") || s.startsWith("ongoing") || s.startsWith("incomplete") || s.startsWith("abandon")) return "En cours";
+  return "Inconnu";
+}
+
+function siteKey(url){
+  let m = /archiveofourown\.org\/works\/(\d+)/.exec(url);
+  if(m) return {source:"AO3", id:"ao3:" + m[1], lien:"https://archiveofourown.org/works/" + m[1]};
+  m = /fanfiction\.net\/s\/(\d+)/.exec(url);
+  if(m) return {source:"FFnet", id:"ffn:" + m[1], lien:"https://www.fanfiction.net/s/" + m[1]};
+  m = /fictionpress\.com\/s\/(\d+)/.exec(url);
+  if(m) return {source:"FictionPress", id:"fp:" + m[1], lien:"https://www.fictionpress.com/s/" + m[1]};
+  return null;
+}
+
+async function parseEpub(file){
+  const entries = await readZipIndex(file);
+  const names = Array.from(entries.keys());
+  const opfName = names.find(n => /\.opf$/i.test(n));
+  const opf = opfName ? await readZipEntry(file, entries.get(opfName)) : "";
+  const base = opfName && opfName.indexOf("/") >= 0 ? opfName.slice(0, opfName.lastIndexOf("/")) : "";
+  const htmlNames = names.filter(n => /\.x?html?$/i.test(n));
+  let order = [];
+  const re = /<item\b[^>]*href="([^"]+\.x?html?)"/gi;
+  let m;
+  while((m = re.exec(opf))){
+    let href = decodeEntities(m[1]);
+    let full = joinPath(base, href);
+    if(!entries.has(full)){
+      try{ full = joinPath(base, decodeURIComponent(href)); }catch(e){}
+    }
+    if(entries.has(full) && order.indexOf(full) < 0) order.push(full);
+  }
+  if(!order.length) order = htmlNames.slice().sort();
+
+  const cache = new Map();
+  async function doc(i){
+    if(i >= order.length) return "";
+    if(!cache.has(i)) cache.set(i, await readZipEntry(file, entries.get(order[i])));
+    return cache.get(i);
+  }
+
+  const r = {
+    source:"Autre", id:"", lien:"",
+    titre: stripTags(grab(/<dc:title[^>]*>([\s\S]*?)<\/dc:title>/i, opf)),
+    auteur: stripTags(grab(/<dc:creator[^>]*>([\s\S]*?)<\/dc:creator>/i, opf)),
+    fandomFile:"", relations:[], tags:[], resume:"", statut:"Inconnu", chap:"", prevu:""
+  };
+  const desc = stripTags(decodeEntities(grab(/<dc:description[^>]*>([\s\S]*?)<\/dc:description>/i, opf)));
+  const heads = [];
+  for(let i = 0; i < Math.min(3, order.length); i++) heads.push(await doc(i));
+  const raw = heads.join(" ");
+  const txt = stripTags(heads.map(bodyOf).join(" "));
+  const txt0 = stripTags(bodyOf(heads[0] || ""));
+
+  if(/Archive of Our Own|archiveofourown/.test(opf) || raw.indexOf("archiveofourown.org/works/") >= 0){
+    r.source = "AO3";
+    let pre = "", preIdx = -1;
+    for(let i = 0; i < order.length; i++){
+      const d = await doc(i);
+      if(d.indexOf('class="tags"') >= 0){ pre = d; preIdx = i; break; }
+    }
+    const fields = {};
+    const fre = /<dt[^>]*>([\s\S]*?)<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/g;
+    while((m = fre.exec(pre))) fields[stripTags(m[1]).replace(/:$/, "")] = m[2];
+    let wid = grab(/archiveofourown\.org\/works\/(\d+)/, pre) || grab(/archiveofourown\.org\/works\/(\d+)/, opf) || grab(/archiveofourown\.org\/works\/(\d+)/, raw);
+    if(!wid){
+      for(let i = order.length - 1; i >= 0 && !wid; i--) wid = grab(/archiveofourown\.org\/works\/(\d+)/, await doc(i));
+    }
+    if(wid){ r.id = "ao3:" + wid; r.lien = "https://archiveofourown.org/works/" + wid; }
+    r.fandomFile = anchorList(fields["Fandom"] || fields["Fandoms"] || "").join(", ");
+    r.relations = anchorList(fields["Relationship"] || fields["Relationships"] || "");
+    r.tags = anchorList(fields["Additional Tags"] || "");
+    const stats = stripTags(fields["Stats"] || "");
+    const ch = /Chapters:\s*(\d+)\s*\/\s*(\d+|\?)/.exec(stats);
+    if(ch){
+      r.chap = ch[1];
+      r.prevu = ch[2] === "?" ? "" : ch[2];
+      r.statut = ch[1] === ch[2] ? "Terminé" : "En cours";
+    }else if(stats){
+      r.chap = "1"; r.prevu = "1"; r.statut = "Terminé";
+    }
+    let sum = "";
+    const sre = />\s*Summary\s*<\/[^>]+>\s*<blockquote[^>]*>([\s\S]*?)<\/blockquote>/;
+    if(preIdx >= 0){
+      for(let i = preIdx; i < Math.min(preIdx + 3, order.length) && !sum; i++) sum = stripTags(grab(sre, await doc(i)));
+    }
+    r.resume = sum || desc;
+    return r;
+  }
+
+  if(txt.indexOf("Storylink:") >= 0){
+    const k = siteKey(raw) || {source:"FFnet", id:"", lien:""};
+    r.source = k.source; r.id = k.id; r.lien = k.lien;
+    const cm = /Chapter 1 to (\d+) of (\d+) chapters/.exec(txt);
+    if(cm) r.chap = cm[1];
+    r.resume = desc || grab(/Summary:\s*([\s\S]*)$/, txt0);
+    return r;
+  }
+
+  if(/ff2ebook/i.test(opf) || txt.indexOf("FF2EBOOK") >= 0){
+    const k = siteKey(raw + " " + opf) || {source:"FFnet", id:"", lien:""};
+    r.source = k.source; r.id = k.id; r.lien = k.lien;
+    r.fandomFile = grab(/Fandom:\s*([\s\S]*?)\s*Summary:/, txt0);
+    r.resume = grab(/Summary:\s*([\s\S]*?)\s*(?:Fic type:|Pairings\/Main char\.:|Status:|Published:)/, txt0) || desc;
+    const rel = grab(/Pairings\/Main char\.:\s*([\s\S]*?)\s*(?:Status:|Published:)/, txt0);
+    r.relations = rel ? rel.split(/\s*,\s*/).filter(Boolean) : [];
+    r.chap = grab(/Chapters count:\s*(\d+)/, txt0);
+    r.statut = normStatus(grab(/Status:\s*([\w\-]+)/, txt0));
+    return r;
+  }
+
+  if(/Ebook-lib/i.test(opf) && txt.indexOf("Status:") >= 0){
+    const src = grab(/Original source:\s*(\S+)/, txt);
+    const k = siteKey(src) || siteKey(raw);
+    if(k){ r.source = k.source; r.id = k.id; r.lien = k.lien; }
+    else if(src){ r.lien = src; }
+    r.resume = desc;
+    r.statut = normStatus(grab(/Status:\s*([\w\-]+)/, txt));
+    r.chap = grab(/Chapters:\s*(\d+)/, txt);
+    if(r.statut === "Terminé") r.prevu = r.chap;
+    const genre = grab(/Genre:\s*([\w\/\- ]+?)\s+-\s/, txt);
+    r.tags = genre ? genre.split("/").map(s => s.trim()).filter(Boolean) : [];
+    return r;
+  }
+
+  if(/fanficdownloader|fanficfare/i.test(opf) || names.some(n => /title_page\.x?html$/i.test(n))){
+    const srcUrl = grab(/<dc:source[^>]*>([^<]+)/i, opf) || grab(/<dc:identifier[^>]*>(https?:[^<]+)/i, opf);
+    const k = siteKey(srcUrl) || siteKey(raw);
+    if(k){ r.source = k.source; r.id = k.id; r.lien = k.lien; }
+    else if(srcUrl){ r.lien = decodeEntities(srcUrl); }
+    r.statut = normStatus(grab(/Status:\s*([\w\-]+)/, txt));
+    r.chap = grab(/Chapters:\s*(\d+)/, txt);
+    if(r.statut === "Terminé") r.prevu = r.chap;
+    r.resume = desc || grab(/Summary:\s*([\s\S]*)$/, txt0);
+    r.fandomFile = grab(/Category:\s*([\s\S]*?)\s*(?:Genre:|Status:|Published:)/, txt0);
+    return r;
+  }
+
+  return r;
+}
+
+function isExcluded(rel){
+  const low = nfc(rel).toLowerCase();
+  return EXCLUDED_DIRS.some(d => low.startsWith(d));
+}
+
+function fandomFor(rel, fandomFile){
+  const parts = nfc(rel).split("/");
+  if(parts.length < 2) return fandomFile || "";
+  const top = parts[0];
+  if(NON_FANDOM_DIRS.indexOf(top.toLowerCase()) >= 0) return fandomFile || "";
+  return top;
+}
+
+function isFandomFolder(rel){
+  const parts = nfc(rel).split("/");
+  return parts.length >= 2 && NON_FANDOM_DIRS.indexOf(parts[0].toLowerCase()) < 0;
+}
+
+async function scanFiles(list, onProgress){
+  const byId = new Map();
+  const report = {total:list.length, vides:[], illisibles:[], doublons:0};
+  let done = 0;
+  for(const item of list){
+    const rel = nfc(item.rel);
+    try{
+      const file = await item.getFile();
+      if(!file.size){ report.vides.push(rel); }
+      else{
+        const r = await parseEpub(file);
+        r.paths = [rel];
+        r.fandom = fandomFor(rel, r.fandomFile);
+        if(!r.id) r.id = "path:" + rel;
+        if(!r.titre) r.titre = rel.split("/").pop().replace(/\.epub$/i, "");
+        const prev = byId.get(r.id);
+        if(!prev){ byId.set(r.id, r); }
+        else{
+          report.doublons++;
+          const keep = (parseInt(r.chap, 10) || 0) > (parseInt(prev.chap, 10) || 0) ? r : prev;
+          const other = keep === r ? prev : r;
+          keep.paths = prev.paths.concat([rel]);
+          if(!isFandomFolder(keep.paths[0])){
+            const good = keep.paths.find(isFandomFolder);
+            if(good) keep.fandom = fandomFor(good, keep.fandomFile);
+            else if(!keep.fandom) keep.fandom = other.fandom;
+          }
+          byId.set(r.id, keep);
+        }
+      }
+    }catch(e){
+      report.illisibles.push(rel);
+    }
+    done++;
+    if(onProgress && (done % 5 === 0 || done === list.length)) onProgress(done, list.length);
+  }
+  return {items: Array.from(byId.values()), report};
+}
+
+function cell(v){
+  const s = String(v === undefined || v === null ? "" : v);
+  return s.length > CELL_MAX ? s.slice(0, CELL_MAX) : s;
+}
+
+function toRow(r, today){
+  return [r.id, r.source, r.titre, r.auteur, r.fandom, r.relations.join(", "), r.tags.join(", "), r.resume, r.statut, r.chap, r.prevu, r.lien, r.paths.join(" | "), "Oui", today].map(cell);
+}
+
+function mergeScan(sheetValues, items, today){
+  const values = sheetValues.map(row => {
+    const out = row.slice(0, NCOLS).map(cell);
+    while(out.length < NCOLS) out.push("");
+    return out;
+  });
+  const index = new Map();
+  values.forEach((row, i) => { if(row[0]) index.set(row[0], i); });
+  const seen = new Set();
+  const added = [];
+  const stats = {nouvelles:0, majs:0, inchangees:0, disparues:0};
+  items.forEach(r => {
+    const row = toRow(r, today);
+    if(index.has(r.id)){
+      const i = index.get(r.id);
+      const old = values[i];
+      let changed = false;
+      for(let c = 1; c <= 13; c++){ if(old[c] !== row[c]){ changed = true; break; } }
+      if(changed) stats.majs++; else stats.inchangees++;
+      values[i] = row;
+      seen.add(r.id);
+    }else{
+      added.push(row);
+      stats.nouvelles++;
+    }
+  });
+  values.forEach(row => {
+    if(row[0] && !seen.has(row[0]) && row[13] === "Oui"){ row[13] = "Non"; stats.disparues++; }
+  });
+  return {values, added, stats};
+}
+
+function initApp(){
+  const COLS = [
+    {key:"Titre", label:"Titre", w:300, cls:"title-cell"},
+    {key:"Fandom", label:"Fandom", w:150},
+    {key:"Relations", label:"Relations", w:190},
+    {key:"Statut", label:"Statut", w:104},
+    {key:"Chap", label:"Chap.", w:76},
+    {key:"Source", label:"Source", w:92},
+    {key:"Resume", label:"Résumé", w:0}
+  ];
+  const RESUME_MAX = 250;
+  function normResume(s){ return String(s || "").replace(/\s+/g, " ").trim(); }
+  function shorten(s, max){
+    s = normResume(s);
+    if(s.length <= max) return s;
+    let cut = s.slice(0, max);
+    if(!/\s/.test(s.charAt(max))){
+      const i = cut.search(/\s\S*$/);
+      if(i > max * 0.6) cut = cut.slice(0, i);
+    }
+    return cut.replace(/[\s,;:.!?\-\u2013\u2014]+$/, "") + "\u2026";
+  }
+  const WKEY = "ficlib-colw";
+  let tokenClient, accessToken = null, tokenExpiresAt = 0;
+  let sheetName = null;
+  let rows = [];
+  let openId = null;
+  let selectedTags = [];
+  let tagMode = "and";
+  let sortKey = "Fandom", sortDir = 1;
+  let widths = {};
+  try{ widths = JSON.parse(localStorage.getItem(WKEY) || "{}") || {}; }catch(e){ widths = {}; }
+
+  const $ = id => document.getElementById(id);
+  const els = {
+    signin:$("btn-signin"), auth:$("auth-bar"), status:$("status-line"), sidebar:$("filters-sidebar"),
+    count:$("count-line"), table:$("grid-table"), cols:$("grid-cols"), head:$("grid-head"), tbody:$("grid-body"),
+    empty:$("empty-state"), search:$("search"), searchClear:$("search-clear"), fFandom:$("filter-fandom"),
+    fStatus:$("filter-status"), fSource:$("filter-source"), fAbsent:$("filter-absent"), tagChips:$("tag-chips"),
+    tagAdd:$("tag-add"), tagList:$("tags-datalist"), modeAnd:$("mode-and"), modeOr:$("mode-or"),
+    scanBlock:$("scan-block"), scanBtn:$("scan-btn"), scanInput:$("scan-input"), scanResult:$("scan-result")
+  };
+
+  function esc(s){ return String(s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function setStatus(msg, isError){ els.status.textContent = msg || ""; els.status.classList.toggle("error", !!isError); }
+  function splitList(s){ return String(s||"").split(/\s*,\s*/).map(x => x.trim()).filter(Boolean); }
+
+  window.addEventListener("load", () => {
+    if(window.google){
+      tokenClient = google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID, scope:SCOPES, callback:() => {}});
+    }
+  });
+
+  function requestToken(prompt){
+    return new Promise((resolve, reject) => {
+      if(!tokenClient && window.google){
+        tokenClient = google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID, scope:SCOPES, callback:() => {}});
+      }
+      if(!tokenClient){ reject(new Error("Client OAuth non initialisé.")); return; }
+      tokenClient.callback = resp => {
+        if(resp.error){ reject(new Error(resp.error)); return; }
+        accessToken = resp.access_token;
+        tokenExpiresAt = Date.now() + ((resp.expires_in || 3600) * 1000) - 60000;
+        resolve(accessToken);
+      };
+      tokenClient.requestAccessToken({prompt});
+    });
+  }
+
+  async function ensureFreshToken(){
+    if(!accessToken || Date.now() >= tokenExpiresAt){
+      try{ await requestToken(""); }
+      catch(e){ els.auth.style.display = "flex"; throw new Error("Session Google expirée, reconnecte-toi."); }
+    }
+  }
+
+  async function apiFetch(url, options, retried){
+    options = options || {};
+    await ensureFreshToken();
+    const res = await fetch(url, Object.assign({}, options, {headers:Object.assign({}, options.headers || {}, {Authorization:"Bearer " + accessToken})}));
+    if(res.status === 401 && !retried){
+      await requestToken("");
+      return apiFetch(url, options, true);
+    }
+    if(!res.ok){ throw new Error("API " + res.status + ": " + (await res.text())); }
+    return res.json();
+  }
+
+  const API = "https://sheets.googleapis.com/v4/spreadsheets/" + SPREADSHEET_ID;
+
+  async function resolveSheetName(){
+    if(sheetName) return sheetName;
+    const data = await apiFetch(API + "?fields=sheets.properties.title");
+    sheetName = data.sheets[0].properties.title;
+    return sheetName;
+  }
+
+  async function readSheet(){
+    const name = await resolveSheetName();
+    const data = await apiFetch(API + "/values/" + encodeURIComponent(name + "!A2:O"));
+    return data.values || [];
+  }
+
+  function toObjects(values){
+    const out = [];
+    values.forEach(r => {
+      if(!r || !r[0]) return;
+      out.push({
+        ID:r[0], Source:r[1]||"", Titre:r[2]||"", Auteur:r[3]||"", Fandom:r[4]||"",
+        Relations:splitList(r[5]), Tags:splitList(r[6]), Resume:r[7]||"", Statut:r[8]||"Inconnu",
+        Chap:r[9]||"", Prevu:r[10]||"", Lien:r[11]||"", Dossier:r[12]||"", Present:(r[13]||"") !== "Non", Scan:r[14]||""
+      });
+    });
+    out.forEach(r => {
+      r._hay = (r.Titre + " " + r.Auteur + " " + r.Resume).toLowerCase();
+      r._labels = r.Tags.concat(r.Relations);
+    });
+    return out;
+  }
+
+  async function loadData(){
+    setStatus("Chargement...");
+    try{
+      rows = toObjects(await readSheet());
+      setStatus("");
+      buildOptions();
+      render();
+    }catch(e){
+      setStatus("Erreur de chargement : " + e.message, true);
+    }
+  }
+
+  function buildOptions(){
+    const keepF = els.fFandom.value, keepS = els.fSource.value;
+    const fandoms = new Map(), sources = new Set(), labels = new Set();
+    rows.forEach(r => {
+      if(!r.Present) return;
+      const f = r.Fandom || "";
+      fandoms.set(f, (fandoms.get(f) || 0) + 1);
+      if(r.Source) sources.add(r.Source);
+      r._labels.forEach(t => labels.add(t));
+    });
+    const fl = Array.from(fandoms.keys()).filter(Boolean).sort((a, b) => a.localeCompare(b, "fr", {sensitivity:"base"}));
+    let h = '<option value="">Tous les fandoms</option>';
+    fl.forEach(f => { h += '<option value="' + esc(f) + '">' + esc(f) + " (" + fandoms.get(f) + ")</option>"; });
+    if(fandoms.has("")) h += '<option value="__none__">Sans fandom (' + fandoms.get("") + ")</option>";
+    els.fFandom.innerHTML = h;
+    els.fFandom.value = keepF;
+    if(els.fFandom.selectedIndex < 0) els.fFandom.value = "";
+    els.fSource.innerHTML = '<option value="">Toutes les sources</option>' + Array.from(sources).sort().map(s => '<option value="' + esc(s) + '">' + esc(s) + "</option>").join("");
+    els.fSource.value = keepS;
+    if(els.fSource.selectedIndex < 0) els.fSource.value = "";
+    els.tagList.innerHTML = Array.from(labels).sort((a, b) => a.localeCompare(b)).map(t => '<option value="' + esc(t) + '">').join("");
+  }
+
+  function renderChips(){
+    els.tagChips.innerHTML = "";
+    selectedTags.forEach(t => {
+      const chip = document.createElement("span");
+      chip.className = "tag-chip";
+      chip.appendChild(document.createTextNode(t + " "));
+      const x = document.createElement("span");
+      x.className = "x";
+      x.textContent = "×";
+      x.addEventListener("click", () => { selectedTags = selectedTags.filter(v => v !== t); renderChips(); render(); });
+      chip.appendChild(x);
+      els.tagChips.appendChild(chip);
+    });
+  }
+
+  function addTag(t){
+    t = String(t||"").trim();
+    if(t && selectedTags.indexOf(t) < 0){ selectedTags.push(t); renderChips(); render(); }
+  }
+
+  function buildHead(){
+    els.cols.innerHTML = "";
+    els.head.innerHTML = "";
+    COLS.forEach(c => {
+      const col = document.createElement("col");
+      const w = widths[c.key] || c.w;
+      if(w) col.style.width = w + "px";
+      els.cols.appendChild(col);
+      const th = document.createElement("th");
+      th.textContent = c.label + (sortKey === c.key ? (sortDir > 0 ? " ↑" : " ↓") : "");
+      if(sortKey === c.key) th.classList.add("sorted");
+      th.addEventListener("click", () => {
+        if(sortKey === c.key) sortDir = -sortDir; else { sortKey = c.key; sortDir = 1; }
+        buildHead();
+        render();
+      });
+      if(c.w){
+        const rz = document.createElement("div");
+        rz.className = "rz";
+        rz.addEventListener("click", e => e.stopPropagation());
+        rz.addEventListener("mousedown", e => {
+          e.preventDefault();
+          e.stopPropagation();
+          const startX = e.clientX, startW = col.getBoundingClientRect().width || widths[c.key] || c.w;
+          function move(ev){
+            const nw = Math.max(50, Math.round(startW + ev.clientX - startX));
+            col.style.width = nw + "px";
+            widths[c.key] = nw;
+          }
+          function up(){
+            document.removeEventListener("mousemove", move);
+            document.removeEventListener("mouseup", up);
+            try{ localStorage.setItem(WKEY, JSON.stringify(widths)); }catch(err){}
+          }
+          document.addEventListener("mousemove", move);
+          document.addEventListener("mouseup", up);
+        });
+        th.appendChild(rz);
+      }
+      els.head.appendChild(th);
+    });
+  }
+
+  function sortValue(r){
+    if(sortKey === "Chap") return parseInt(r.Chap, 10) || 0;
+    if(sortKey === "Relations") return (r.Relations[0] || "￿").toLowerCase();
+    if(sortKey === "Fandom") return (r.Fandom || "￿").toLowerCase();
+    return String(r[sortKey] || "").toLowerCase();
+  }
+
+  function render(){
+    const q = els.search.value.trim().toLowerCase();
+    const fandom = els.fFandom.value, st = els.fStatus.value, src = els.fSource.value, showAbsent = els.fAbsent.checked;
+    const base = rows.filter(r => showAbsent || r.Present);
+    const filtered = base.filter(r => {
+      if(q && r._hay.indexOf(q) < 0) return false;
+      if(fandom === "__none__"){ if(r.Fandom) return false; }
+      else if(fandom && r.Fandom !== fandom) return false;
+      if(st && r.Statut !== st) return false;
+      if(src && r.Source !== src) return false;
+      if(selectedTags.length){
+        const has = t => r._labels.indexOf(t) >= 0;
+        if(tagMode === "and" ? !selectedTags.every(has) : !selectedTags.some(has)) return false;
+      }
+      return true;
+    });
+    filtered.sort((a, b) => {
+      const va = sortValue(a), vb = sortValue(b);
+      let c = (typeof va === "number") ? va - vb : va.localeCompare(vb, "fr", {sensitivity:"base"});
+      if(!c) c = a.Titre.localeCompare(b.Titre, "fr", {sensitivity:"base"});
+      return c * sortDir;
+    });
+    els.count.textContent = filtered.length + " / " + base.length + " fic(s) affichée(s)";
+    els.tbody.innerHTML = "";
+    const show = filtered.length > 0;
+    els.table.classList.toggle("hidden", !show);
+    els.empty.style.display = show ? "none" : "block";
+    const frag = document.createDocumentFragment();
+    filtered.forEach(r => {
+      frag.appendChild(buildRow(r));
+      if(openId === r.ID) frag.appendChild(buildDetail(r));
+    });
+    els.tbody.appendChild(frag);
+  }
+
+  function td(cls, label, empty){
+    const el = document.createElement("td");
+    if(cls) el.className = cls;
+    if(label) el.setAttribute("data-label", label);
+    if(empty) el.classList.add("empty-m");
+    return el;
+  }
+
+  function buildRow(r){
+    const tr = document.createElement("tr");
+    tr.className = "data-row" + (r.Present ? "" : " absent");
+
+    const t = td("title-cell");
+    const tt = document.createElement("div"); tt.className = "t"; tt.textContent = r.Titre;
+    const ta = document.createElement("div"); ta.className = "a"; ta.textContent = r.Auteur;
+    t.appendChild(tt); t.appendChild(ta);
+    tr.appendChild(t);
+
+    const f = td("soft", "Fandom");
+    f.textContent = r.Fandom || "Sans fandom";
+    tr.appendChild(f);
+
+    const rel = td("soft clamp wide", "Relations", !r.Relations.length);
+    const reld = document.createElement("div"); reld.textContent = r.Relations.join(", ");
+    rel.appendChild(reld);
+    tr.appendChild(rel);
+
+    const s = td("", "Statut");
+    const b = document.createElement("span");
+    b.className = "badge " + (r.Statut === "Terminé" ? "done" : r.Statut === "En cours" ? "wip" : "unk");
+    b.textContent = r.Statut + (r.Present ? "" : " · absente");
+    s.appendChild(b);
+    tr.appendChild(s);
+
+    const c = td("soft", "Chapitres");
+    c.textContent = r.Chap ? (r.Chap + (r.Prevu ? " / " + r.Prevu : (r.Statut === "En cours" ? " / ?" : ""))) : "—";
+    tr.appendChild(c);
+
+    const so = td("soft", "Source");
+    so.textContent = r.Source;
+    tr.appendChild(so);
+
+    const rs = td("wide resume-cell", "Résumé", !normResume(r.Resume));
+    rs.textContent = shorten(r.Resume, RESUME_MAX) || "\u2014";
+    tr.appendChild(rs);
+
+    tr.addEventListener("click", () => { openId = (openId === r.ID) ? null : r.ID; render(); });
+    return tr;
+  }
+
+  function pillField(label, list){
+    const row = document.createElement("div"); row.className = "detail-field";
+    const l = document.createElement("span"); l.className = "lbl"; l.textContent = label;
+    const v = document.createElement("div"); v.className = "val";
+    list.forEach(x => {
+      const p = document.createElement("span"); p.className = "tag-pill-outline"; p.textContent = x;
+      p.addEventListener("click", e => { e.stopPropagation(); addTag(x); });
+      v.appendChild(p);
+    });
+    row.appendChild(l); row.appendChild(v);
+    return row;
+  }
+
+  function buildDetail(r){
+    const tr = document.createElement("tr"); tr.className = "detail-row";
+    const cellEl = document.createElement("td"); cellEl.colSpan = COLS.length;
+    const inner = document.createElement("div"); inner.className = "detail-inner";
+
+    const close = document.createElement("div"); close.className = "detail-close"; close.textContent = "×";
+    close.addEventListener("click", e => { e.stopPropagation(); openId = null; render(); });
+    inner.appendChild(close);
+
+    const meta = document.createElement("div"); meta.className = "detail-meta";
+    let h = "";
+    if(r.Auteur) h += "<span>" + esc(r.Auteur) + "</span>";
+    h += "<span>" + esc(r.Source) + "</span>";
+    if(/^https?:\/\//.test(r.Lien)) h += '<span><a href="' + esc(r.Lien) + '" target="_blank" rel="noopener">Page d\'origine ↗</a></span>';
+    if(r.Scan) h += "<span>Scan du " + esc(r.Scan) + "</span>";
+    meta.innerHTML = h;
+    inner.appendChild(meta);
+
+    if(!normResume(r.Resume) || normResume(r.Resume).length > RESUME_MAX){
+      const p = document.createElement("p"); p.className = "detail-resume";
+      p.textContent = r.Resume || "Pas de résumé dans le fichier.";
+      inner.appendChild(p);
+    }
+
+    if(r.Relations.length) inner.appendChild(pillField("Relations", r.Relations));
+    if(r.Tags.length) inner.appendChild(pillField("Tags", r.Tags));
+
+    const fr = document.createElement("div"); fr.className = "detail-field";
+    const fl = document.createElement("span"); fl.className = "lbl"; fl.textContent = "Fichier";
+    const fv = document.createElement("div"); fv.className = "val path"; fv.textContent = r.Dossier;
+    fr.appendChild(fl); fr.appendChild(fv);
+    inner.appendChild(fr);
+
+    cellEl.appendChild(inner);
+    tr.appendChild(cellEl);
+    return tr;
+  }
+
+  async function walkDir(dir, prefix, out){
+    for await (const entry of dir.entries()){
+      const name = entry[0], handle = entry[1];
+      const rel = prefix ? prefix + "/" + name : name;
+      if(handle.kind === "directory"){
+        if(isExcluded(rel + "/")) continue;
+        await walkDir(handle, rel, out);
+      }else if(/\.epub$/i.test(name)){
+        out.push({rel, getFile:() => handle.getFile()});
+      }
+    }
+  }
+
+  function listItem(label, n){ return n ? "<li>" + n + " " + label + "</li>" : ""; }
+
+  function reportHtml(stats, report){
+    let h = "Scan terminé : " + report.total + " EPUB lus.<ul>";
+    h += listItem("nouvelle(s)", stats.nouvelles);
+    h += listItem("mise(s) à jour", stats.majs);
+    h += listItem("inchangée(s)", stats.inchangees);
+    h += listItem("absente(s) du dossier", stats.disparues);
+    h += listItem("doublon(s) fusionné(s)", report.doublons);
+    h += listItem("fichier(s) vide(s)", report.vides.length);
+    h += listItem("fichier(s) illisible(s)", report.illisibles.length);
+    h += "</ul>";
+    const bad = report.vides.concat(report.illisibles);
+    if(bad.length) h += '<div style="margin-top:6px;">' + bad.map(esc).join("<br>") + "</div>";
+    return h;
+  }
+
+  async function writeScan(merged){
+    const name = await resolveSheetName();
+    if(merged.values.length){
+      const range = name + "!A2:O" + (merged.values.length + 1);
+      await apiFetch(API + "/values/" + encodeURIComponent(range) + "?valueInputOption=RAW", {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({range, values:merged.values})
+      });
+    }
+    if(merged.added.length){
+      const range = name + "!A:O";
+      await apiFetch(API + "/values/" + encodeURIComponent(range) + ":append?valueInputOption=RAW&insertDataOption=INSERT_ROWS", {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({values:merged.added})
+      });
+    }
+  }
+
+  async function runScan(list){
+    els.scanBtn.disabled = true;
+    try{
+      if(!list.length){
+        els.scanResult.textContent = "Aucun EPUB trouvé dans ce dossier. Rien n'a été modifié.";
+        return;
+      }
+      els.scanResult.textContent = "Lecture des EPUB : 0 / " + list.length;
+      const res = await scanFiles(list, (d, n) => { els.scanResult.textContent = "Lecture des EPUB : " + d + " / " + n; });
+      if(!res.items.length){
+        els.scanResult.innerHTML = "Aucun EPUB lisible. Rien n'a été modifié.";
+        return;
+      }
+      els.scanResult.textContent = "Comparaison avec le Sheet...";
+      const today = new Date().toISOString().slice(0, 10);
+      const merged = mergeScan(await readSheet(), res.items, today);
+      const presentBefore = merged.stats.majs + merged.stats.inchangees + merged.stats.disparues;
+      const finish = async () => {
+        els.scanResult.textContent = "Écriture dans le Sheet...";
+        await writeScan(merged);
+        els.scanResult.innerHTML = reportHtml(merged.stats, res.report);
+        await loadData();
+      };
+      if(presentBefore > 0 && merged.stats.disparues > presentBefore / 2){
+        els.scanResult.innerHTML = "";
+        const box = document.createElement("div"); box.className = "warnbox";
+        const msg = document.createElement("span");
+        msg.textContent = merged.stats.disparues + " fics sur " + presentBefore + " seraient marquées absentes. Mauvais dossier ?";
+        const btns = document.createElement("div");
+        const ok = document.createElement("button"); ok.textContent = "Enregistrer quand même";
+        const no = document.createElement("button"); no.className = "secondary"; no.textContent = "Annuler";
+        ok.addEventListener("click", async () => {
+          els.scanBtn.disabled = true;
+          try{ await finish(); }catch(e){ els.scanResult.textContent = "Erreur : " + e.message; }
+          els.scanBtn.disabled = false;
+        });
+        no.addEventListener("click", () => { els.scanResult.textContent = "Scan annulé. Rien n'a été modifié."; });
+        btns.appendChild(ok); btns.appendChild(no);
+        box.appendChild(msg); box.appendChild(btns);
+        els.scanResult.appendChild(box);
+        return;
+      }
+      await finish();
+    }catch(e){
+      els.scanResult.textContent = "Erreur : " + e.message;
+    }finally{
+      els.scanBtn.disabled = false;
+    }
+  }
+
+  els.scanBtn.addEventListener("click", async () => {
+    if(window.showDirectoryPicker){
+      let dir;
+      try{ dir = await window.showDirectoryPicker({mode:"read"}); }catch(e){ return; }
+      els.scanResult.textContent = "Parcours des dossiers...";
+      const list = [];
+      try{ await walkDir(dir, "", list); }
+      catch(e){ els.scanResult.textContent = "Erreur : " + e.message; return; }
+      runScan(list);
+    }else{
+      els.scanInput.click();
+    }
+  });
+
+  els.scanInput.addEventListener("change", () => {
+    const list = [];
+    Array.from(els.scanInput.files || []).forEach(f => {
+      if(!/\.epub$/i.test(f.name)) return;
+      const full = f.webkitRelativePath || f.name;
+      const rel = full.indexOf("/") >= 0 ? full.slice(full.indexOf("/") + 1) : full;
+      if(isExcluded(rel)) return;
+      list.push({rel, getFile:async () => f});
+    });
+    els.scanInput.value = "";
+    runScan(list);
+  });
+
+  if(!window.showDirectoryPicker && !("webkitdirectory" in HTMLInputElement.prototype)){
+    els.scanBlock.style.display = "none";
+  }
+
+  els.signin.addEventListener("click", async () => {
+    try{
+      await requestToken("consent");
+      els.auth.style.display = "none";
+      els.sidebar.style.display = "flex";
+      els.count.style.display = "block";
+      buildHead();
+      loadData();
+    }catch(e){
+      setStatus("Connexion refusée.", true);
+    }
+  });
+
+  function updateClear(){ els.searchClear.classList.toggle("show", els.search.value.length > 0); }
+  els.search.addEventListener("input", () => { updateClear(); render(); });
+  els.searchClear.addEventListener("click", () => { els.search.value = ""; updateClear(); els.search.focus(); render(); });
+  els.fFandom.addEventListener("change", render);
+  els.fStatus.addEventListener("change", render);
+  els.fSource.addEventListener("change", render);
+  els.fAbsent.addEventListener("change", () => { buildOptions(); render(); });
+  els.tagAdd.addEventListener("change", () => { addTag(els.tagAdd.value); els.tagAdd.value = ""; });
+  els.modeAnd.addEventListener("click", () => { tagMode = "and"; els.modeAnd.classList.add("active"); els.modeOr.classList.remove("active"); render(); });
+  els.modeOr.addEventListener("click", () => { tagMode = "or"; els.modeOr.classList.add("active"); els.modeAnd.classList.remove("active"); render(); });
+}
+
+if(typeof document !== "undefined") initApp();
+</script>
+</body>
+</html>
